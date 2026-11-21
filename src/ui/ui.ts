@@ -46,7 +46,7 @@ function renderSection(id: SectionId, c: Content): string {
       };
       const total = (list: SkillNode[]): number => list.reduce((a, n) => a + 1 + total(n.children ?? []), 0);
       return `<h2 id="panel-title">Smithy</h2>
-        <p class="meta">Skill tree · ${total(c.skills)} of ${total(c.skills)} skills unlocked</p>
+        <p class="meta">Skill tree · ${total(c.skills)} skills unlocked</p>
         <div class="skill-tree" role="list">${c.skills.map((n) => `<div class="st-branch" role="listitem">${node(n, true)}</div>`).join('')}</div>`;
     }
     case 'experience':

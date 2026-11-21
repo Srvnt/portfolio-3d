@@ -76,6 +76,20 @@
       ]
     },
     {
+  "name": "Python",
+  "icon": "🐍",
+  "children": [
+    {
+      "name": "Django",
+      "icon": "🎸"
+    },
+    {
+      "name": "Django ORM",
+      "icon": "🔗"
+    }
+  ]
+},
+    {
       "name": "JavaScript",
       "icon": "JS",
       "children": [
@@ -162,16 +176,22 @@
   ],
   "experience": [
     {
-      "period": "2024 — now",
-      "title": "Job title",
-      "company": "Company",
-      "summary": "Placeholder: what you own and one highlight."
+      "period": "06/23 — Present",
+      "title": "Software Developer",
+      "company": "Arter",
+      "summary": "Working with legacy and newer software. Optimizing CI/CD pipelines."
     },
     {
-      "period": "2021 — 2024",
-      "title": "Job title",
-      "company": "Company",
-      "summary": "Placeholder: what you own and one highlight."
+      "period": "01/07 — 05/23",
+      "title": "Warehouse Worker",
+      "company": "Kesko",
+      "summary": "Did almost everything in the logistics. Was a SAP-poweruser"
+    },
+    {
+      "period": "01/06 — 12/06",
+      "title": "Contractual Military Personnel",
+      "company": "Puolustusvoimat",
+      "summary": "Deputy platoon leader, training and teaching"
     }
   ],
   "contact": {
@@ -179,15 +199,15 @@
     "links": [
       {
         "label": "Email",
-        "url": "mailto:you@example.com"
+        "url": "mailto:petri.malmstrom@gmail.com"
       },
       {
         "label": "LinkedIn",
-        "url": "https://www.linkedin.com/"
+        "url": "https://www.linkedin.com/in/petri-malmstrom/"
       },
       {
         "label": "GitHub",
-        "url": "https://github.com/"
+        "url": "https://github.com/Srvnt"
       }
     ]
   },
@@ -199,11 +219,11 @@
     "Walk to a door and press E to enter. Treasure is hidden in the woods…"
   ],
   "secrets": [
-    "You found a fun fact! Placeholder: something surprising about you.",
-    "You found a side quest! Placeholder: a hobby project or game jam entry.",
+    "You found a fun fact! I think I don't fit the usual developer stereotype well.",
+    "You found a side quest! I'm always doing some side projects, it might be testing some new library or new take on a old project",
     "You found the developer's notes! This world is hand-built with Three.js — no game engine.",
-    "You found an explorer's badge! Placeholder: a place you'd love to travel to.",
-    "You found an old map! Placeholder: something you're learning right now."
+    "You found an explorer's badge! I also travel a lot and I have lived abroad",
+    "You found an old map! I'm always learning new stuff and try to keep up with the trends"
   ],
   "fish": [
     {
