@@ -73,14 +73,14 @@ export class WeatherUI {
   private root = document.getElementById('weather')!;
   private pill = this.root.querySelector('.wx-pill') as HTMLButtonElement;
   private panel = this.root.querySelector('.wx-panel') as HTMLElement;
-  private mode: Mode = 'live';
+  private mode: Mode = 'custom';
   private place: Place;
-  private custom = new Set<Key>(['sun', 'wind']);
+  private custom = new Set<Key>(['sun']);
   private liveState: WeatherState | null = null;
   private liveText = '';
   private temp = '';
   private refresh = 0;
-  private time: TimeChoice = 'auto';
+  private time: TimeChoice = 'day';
   private placeLabel = '';
   private apply: (s: WeatherState) => void;
 
