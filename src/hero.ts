@@ -32,7 +32,7 @@ export class Hero {
     const tunic = mat('#3f9a5c');
     const pants = mat('#465a92');
     const boots = mat('#5a3a24');
-    const hair = mat('#d9663a', { flatShading: true });
+    const hair = mat('#3b2618', { flatShading: true });
     const scarf = mat('#e04848');
 
     const part = (geo: THREE.BufferGeometry, m: THREE.Material, parent: THREE.Object3D, x = 0, y = 0, z = 0) => {
