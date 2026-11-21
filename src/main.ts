@@ -29,7 +29,6 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const startText = document.querySelector('.title-start') as HTMLElement;
 
 async function init() {
-  // let the title screen paint before the heavy world build
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
   const { renderer, scene, camera, composer, sun, hemi, bloom, sunOffset, followSun, lowEnd } = createRenderer(canvas);
@@ -75,7 +74,6 @@ async function init() {
   hero.face(map.start.x, map.start.z - 1);
   scene.add(hero.group);
 
-  // river life + fishing
   const splash = new Puffs(30, '#eaf8ff', 0.85);
   const ripples = new Ripples(18);
   const school = new School(map, Math.max(12, SPECIES.length * 3));
@@ -86,7 +84,6 @@ async function init() {
   };
   scene.add(school.group, splash.group, ripples.group);
 
-  // sword: trail, leaf bursts, knock-back, cutting bushes
   const swoosh = new Swoosh();
   const leafBurst = new Puffs(80, '#6fbf4a', 0.95, 5);
   scene.add(swoosh.group, leafBurst.group);
@@ -99,7 +96,6 @@ async function init() {
         1.3 + Math.random() * 0.6, 0.28 + Math.random() * 0.2, 0,
       );
   };
-  // ---------------------------------------------------------------- combat
   const enemies = new Enemies(map, lowEnd ? 12 : 18);
   const hearts = new Hearts();
   const shockRings = new Ripples(6, '#ffb070', 0.3);
@@ -147,26 +143,22 @@ async function init() {
     for (const p of cut) { physics.setPropSolid(p, false); burst(p.x, 0.35, p.z, 16); }
     for (const tr of treesNear(c, 1.4)) burst(tr.x, 2.1, tr.z, 9, 1.2);
     uniforms.uHit.value.set(c.x, c.z, 1);
-    // small lunge into the swing
     hero.body.velocity.x += fwd.x * 2.2;
     hero.body.velocity.z += fwd.z * 2.2;
     if (knocked || cut.length) shake = combo === 2 ? 0.16 : 0.1;
   };
   const fishing = new Fishing(scene, hero, school, splash, ripples);
   const caughtFacts = new Set<number>();
-  // a floating "Fish here" prompt that follows the hero along any riverbank
   const riverPrompt: Interactable = { id: 'river', kind: 'fish', x: 0, z: 0, range: 0.5, label: 'Fish here', labelPos: [0, 2.2, 0] };
   let riverCast: { x: number; z: number } | null = null;
   let shownAllCaught = false;
 
-  // ---------------------------------------------------------------- state
   type State = 'title' | 'intro' | 'play' | 'dialog' | 'panel' | 'fishing' | 'down';
   let state: State = 'title';
   const input = new Input();
   const ui = new UI(content);
   const minimap = new Minimap(map);
 
-  // weather: snow settles / ground gets wet on world surfaces (not on characters)
   const lanterns = createLanterns(physics, lowEnd ? 2 : 4);
   scene.add(lanterns.group);
   const weather = new WeatherFX(scene, sun, hemi, bloom, renderer, sunOffset);
@@ -204,7 +196,6 @@ async function init() {
       if (d < it.range && d < bestD) { best = it; bestD = d; }
     }
     if (best) return best;
-    // otherwise: can we fish from here?
     riverCast = map.riverSpot(hero.x, hero.z);
     if (!riverCast) return null;
     riverPrompt.x = hero.x;
@@ -236,7 +227,6 @@ async function init() {
     }
   };
 
-  // ---------------------------------------------------------------- camera
   const PITCH = THREE.MathUtils.degToRad(48);
   const DIST = 19;
   const offset = () => {
@@ -253,7 +243,6 @@ async function init() {
   };
   const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
-  // ---------------------------------------------------------------- loop
   const clock = new THREE.Clock();
   let smokeT = 0;
   let dustT = 0;
@@ -261,7 +250,6 @@ async function init() {
 
   renderer.setAnimationLoop(() => {
     let dt = Math.min(clock.getDelta(), 1 / 20);
-    // hit stop: a split-second freeze that sells the impact
     if (hitStop > 0) { hitStop -= dt; dt *= 0.06; }
     const t = clock.elapsedTime;
     uniforms.uTime.value = t;
@@ -271,7 +259,6 @@ async function init() {
 
     if (state === 'play') {
       const ax = input.axis();
-      // you can still steer while swinging, just slowly
       hero.drive(hero.attacking ? { x: ax.x * 0.3, z: ax.z * 0.3, run: false } : ax, dt);
       if (presses.some((k) => ATTACK_KEYS.has(k))) hero.attack();
       else if (near && presses.some((k) => USE_KEYS.has(k))) interact(near);
@@ -294,7 +281,7 @@ async function init() {
       } else if (state === 'fishing') {
         const ax = input.axis();
         if (presses.includes('Escape') || ax.x || ax.z) {
-          fishing.stop(); // walking away or Esc reels the line in
+          fishing.stop();
           state = 'play';
         } else {
           const res = fishing.update(dt, t, presses.some((k) => INTERACT_KEYS.has(k)));
@@ -332,14 +319,12 @@ async function init() {
     poof.update(dt);
     const pick = hearts.update(dt, t, hero.x, hero.z);
     if (pick.healed && pick.at) { hero.heal(pick.healed); ui.damageNumber(pick.at, `+${pick.healed}`, 'heal', camera); }
-    // the village is a safe haven: slowly heal there
     if (!hero.down && map.isSafe(hero.x, hero.z) && hero.hp < hero.maxHp) hero.heal(6 * dt);
     ui.setHp(hero.hp, hero.maxHp);
     weather.update(dt, focus);
     lanterns.setNight(weather.night, t);
     gate.setNight(weather.night, t);
     gate.animate(t, weather.current.wind);
-    // raindrops dimpling the river near the hero
     if (weather.current.rain > 0.1 && Math.random() < dt * 30 * weather.current.rain) {
       const rx = hero.x + (Math.random() - 0.5) * 24, rz = hero.z + (Math.random() - 0.5) * 18;
       if (map.tile(Math.floor(rx), Math.floor(rz)) === Tile.Water) ripples.emit(new THREE.Vector3(rx, 0, rz), 0.25, 0.6);
@@ -381,7 +366,6 @@ async function init() {
     dust.update(dt);
     ui.updateDialog(dt);
 
-    // camera
     const follow = new THREE.Vector3(hero.x + hero.body.velocity.x * 0.18, 0, hero.z + hero.body.velocity.z * 0.18);
     clampFocus(follow);
     focus.lerp(follow, 1 - Math.exp(-dt * 4));

@@ -1,6 +1,5 @@
 import { Input } from '../core/input';
 
-/** Floating virtual joystick (left side) + action button for touch screens. */
 export function setupTouch(input: Input, canvas: HTMLCanvasElement) {
   const stick = document.getElementById('stick')!;
   const knob = stick.querySelector('.knob') as HTMLElement;

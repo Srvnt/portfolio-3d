@@ -11,10 +11,10 @@ export const FOG = new THREE.Color('#cfe6dc');
 
 const VignetteShader = {
   uniforms: { tDiffuse: { value: null }, uStrength: { value: 0.32 } },
-  vertexShader: /* glsl */ `
+  vertexShader: `
     varying vec2 vUv;
     void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: /* glsl */ `
+  fragmentShader: `
     uniform sampler2D tDiffuse; uniform float uStrength; varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
@@ -38,7 +38,6 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   scene.fog = new THREE.Fog(FOG, 32, 75);
   scene.background = FOG.clone();
 
-  // gradient sky dome
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(150, 32, 16),
     new THREE.ShaderMaterial({
@@ -57,7 +56,6 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   const camera = new THREE.PerspectiveCamera(34, 1, 0.5, 220);
   sky.onBeforeRender = () => sky.position.copy(camera.position);
 
-  // lights
   const hemi = new THREE.HemisphereLight('#cfe8ff', '#6d8f4a', 1.35);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight('#ffe6bf', 2.6);
@@ -69,10 +67,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   sun.shadow.normalBias = 0.03;
   sun.shadow.radius = 3;
   scene.add(sun, sun.target);
-  /** Direction to the sun/moon (scaled); the day-night cycle moves it. */
   const sunOffset = new THREE.Vector3(-14, 26, 12);
 
-  // post-processing
   const target = new THREE.WebGLRenderTarget(1, 1, { samples: lowEnd ? 0 : 2, type: THREE.HalfFloatType });
   const composer = new EffectComposer(renderer, target);
   composer.addPass(new RenderPass(scene, camera));
@@ -88,13 +84,12 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     composer.setPixelRatio(renderer.getPixelRatio());
     composer.setSize(w, h);
     camera.aspect = w / h;
-    camera.fov = camera.aspect < 0.8 ? 48 : 34; // portrait phones see more
+    camera.fov = camera.aspect < 0.8 ? 48 : 34;
     camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', resize);
   resize();
 
-  /** Keep the shadow frustum centred on the action for crisp shadows. */
   function followSun(focus: THREE.Vector3) {
     sun.target.position.copy(focus);
     sun.position.copy(focus).add(sunOffset);

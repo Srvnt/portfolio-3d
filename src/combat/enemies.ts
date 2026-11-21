@@ -1,10 +1,3 @@
-/**
- * Monsters of the wilds. Each enemy has its own health (scaled by its size), a floating
- * health bar, and a telegraphed attack: watch the wind-up, then get out of the way.
- *
- * Enemies move on the tile grid (no rigid bodies): they avoid trees, water and buildings
- * and never step into the village.
- */
 import * as THREE from 'three';
 import { EnemyKind, SPAWN_ZONES, WorldMap } from '../world/map';
 
@@ -15,13 +8,10 @@ interface EnemyStats {
   speed: number;
   radius: number;
   aggro: number;
-  /** distance at which it starts its attack */
   reach: number;
   windup: number;
   cooldown: number;
-  /** how far sword hits push it */
   knock: number;
-  /** wind-up can't be interrupted by hits */
   armored: boolean;
   barY: number;
 }
@@ -39,11 +29,10 @@ export interface Enemy {
   stats: EnemyStats;
   group: THREE.Group;
   body: THREE.Object3D;
-  /** materials that flash white when hit */
   flashMats: THREE.MeshStandardMaterial[];
   parts: Record<string, THREE.Object3D>;
   x: number; z: number; yaw: number;
-  kx: number; kz: number; // knockback velocity
+  kx: number; kz: number;
   hp: number; maxHp: number;
   size: number;
   state: State;
@@ -176,7 +165,6 @@ function buildBrute(hue: number) {
   }
   body.add(trunk, capGroup);
   eyes(body, 0.66, 0.38, 0.13, 0.06);
-  // angry brows
   for (const s of [-1, 1]) {
     const brow = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.035, 0.04), std('#4a3020'));
     brow.position.set(s * 0.13, 0.76, 0.42);
@@ -208,7 +196,6 @@ export interface SlashHit { enemy: Enemy; dmg: number; crit: boolean; killed: bo
 export class Enemies {
   group = new THREE.Group();
   list: Enemy[] = [];
-  /** Hero got hit: damage and the direction it came from. */
   onHeroHit: (dmg: number, fromX: number, fromZ: number) => void = () => {};
   onShockwave: (x: number, z: number, r: number) => void = () => {};
   onDeath: (e: Enemy) => void = () => {};
@@ -248,7 +235,6 @@ export class Enemies {
     const { bar, fill } = healthBar(kind === 'brute' ? 1.1 : 0.8);
     this.group.add(group, bar);
     const at = this.freeSpot(zone);
-    // bigger individuals are tougher
     const maxHp = Math.round(stats.hp * size * size * (0.9 + Math.random() * 0.2));
     const e: Enemy = {
       kind, stats, group, body: built.body, flashMats: built.flash, parts: built.parts,
@@ -268,7 +254,6 @@ export class Enemies {
     this.list.push(e);
   }
 
-  /** Is the circle at (x,z) clear of trees, water, buildings and the village? */
   private free(x: number, z: number, r: number) {
     const m = this.map;
     if (m.isSafe(x, z)) return false;
@@ -276,7 +261,6 @@ export class Enemies {
       m.isBlocked(Math.floor(x - r), Math.floor(z + r)) || m.isBlocked(Math.floor(x + r), Math.floor(z + r)));
   }
 
-  /** Move with sliding collision; returns false if fully blocked. */
   private move(e: Enemy, dx: number, dz: number) {
     const r = e.stats.radius * e.size * 0.8;
     let moved = false;
@@ -292,14 +276,12 @@ export class Enemies {
     e.yaw += d * Math.min(1, dt * rate);
   }
 
-  /** Sword slash: damage every living enemy in the arc. */
   slash(center: THREE.Vector3, r: number, fwd: THREE.Vector3, combo: number, heroX: number, heroZ: number): SlashHit[] {
     const hits: SlashHit[] = [];
     for (const e of this.list) {
       if (e.state === 'dead') continue;
       const reach = r + e.stats.radius * e.size;
       const d = Math.hypot(e.x - center.x, e.z - center.z);
-      // must be in front of the hero, not behind
       const ahead = (e.x - heroX) * fwd.x + (e.z - heroZ) * fwd.z;
       if (d > reach || ahead < -0.3) continue;
       const base = [10, 12, 22][combo];
@@ -320,7 +302,6 @@ export class Enemies {
         if (e.danger) e.danger.visible = false;
         this.onDeath(e);
       } else if (!(e.stats.armored && e.state === 'windup') || combo === 2) {
-        // interrupt everything except an armored wind-up (only the finisher breaks it)
         e.state = 'stagger';
         e.t = 0;
         if (e.danger) e.danger.visible = false;
@@ -335,7 +316,6 @@ export class Enemies {
     for (const e of this.list) {
       if (e.state === 'dead') {
         e.t += dt;
-        // poof: squash and vanish
         const k = Math.min(1, e.t / 0.35);
         e.group.scale.set(1 + k * 0.6, Math.max(0.001, 1 - k), 1 + k * 0.6);
         e.bar.visible = false;
@@ -346,7 +326,6 @@ export class Enemies {
       }
       if (active) this.think(e, dt, t, hero, heroSafe);
 
-      // knockback slide + friction
       if (Math.abs(e.kx) + Math.abs(e.kz) > 0.01) {
         this.move(e, e.kx * dt, e.kz * dt);
         const f = Math.exp(-dt * 7);
@@ -355,7 +334,6 @@ export class Enemies {
       }
       this.animate(e, dt, t);
 
-      // health bar: visible when near the hero or recently hit
       e.seenT = Math.max(0, e.seenT - dt);
       const near = Math.hypot(e.x - hero.x, e.z - hero.z) < 9;
       e.bar.visible = near || e.seenT > 0;
@@ -419,7 +397,6 @@ export class Enemies {
         break;
       }
       case 'windup': {
-        // telegraph: keep tracking the hero a little (not for the beetle: it commits to a line)
         if (e.kind !== 'beetle' && dist > 0.01) e.dir = { x: dx / dist, z: dz / dist };
         this.face(e, e.x + e.dir.x, e.z + e.dir.z, dt, e.kind === 'beetle' ? 12 : 6);
         if (e.danger) {
@@ -445,7 +422,7 @@ export class Enemies {
         const v = e.kind === 'jelly' ? 6.5 : e.kind === 'beetle' ? 9.5 : 0;
         if (v) {
           const ok = this.move(e, e.dir.x * v * dt, e.dir.z * v * dt);
-          if (!ok && e.kind === 'beetle') { e.state = 'stagger'; e.t = -0.6; this.onStep(e.x, e.z); break; } // rammed a wall: dazed
+          if (!ok && e.kind === 'beetle') { e.state = 'stagger'; e.t = -0.6; this.onStep(e.x, e.z); break; }
           if (!e.hitHero && dist < s.radius * e.size + 0.45 && hero.alive) { this.onHeroHit(s.dmg, e.x, e.z); e.hitHero = true; }
         }
         if (e.t >= dur) { e.state = 'recover'; e.t = 0; e.cool = s.cooldown; if (e.kind === 'jelly') this.onStep(e.x, e.z); }
@@ -480,7 +457,6 @@ export class Enemies {
         b.position.y = Math.sin(k * Math.PI) * 0.9;
         b.scale.set(base * 0.9, base * 1.2, base * 0.9);
       } else {
-        // idle/walk bounce
         const hop = Math.abs(Math.sin(t * (e.state === 'chase' ? 7 : 3.5) + e.home.x));
         b.position.y = hop * (e.state === 'chase' ? 0.22 : 0.08);
         const sq = 1 - hop * 0.12;
@@ -497,12 +473,11 @@ export class Enemies {
         leg.rotation.z = side * 0.9;
       }
       if (e.state === 'windup') {
-        // scrape and shake before charging
         b.rotation.x = -0.15;
         b.position.x = Math.sin(t * 50) * 0.04;
         if (Math.random() < dt * 8) this.onStep(e.x - e.dir.x * 0.5, e.z - e.dir.z * 0.5);
       } else if (e.state === 'stagger' && e.t < 0) {
-        b.rotation.z = Math.sin(t * 20) * 0.25; // dazed after hitting a wall
+        b.rotation.z = Math.sin(t * 20) * 0.25;
       }
     } else {
       const cap = e.parts.cap, armL = e.parts.armL, armR = e.parts.armR;
@@ -527,7 +502,6 @@ export class Enemies {
       }
     }
     if (e.state === 'stagger' && e.t >= 0) b.rotation.x -= 0.25;
-    // hit flash
     e.flash = Math.max(0, e.flash - dt * 6);
     for (const m of e.flashMats) {
       if (!m.userData.baseEmissive) m.userData.baseEmissive = m.emissive.clone();
@@ -535,7 +509,6 @@ export class Enemies {
     }
   }
 
-  /** Keep enemies from stacking on top of each other. */
   private separate() {
     const L = this.list;
     for (let i = 0; i < L.length; i++)
@@ -564,7 +537,6 @@ export class Enemies {
     e.group.scale.set(1, 1, 1);
   }
 
-  /** Push enemies out of the hero's way (the hero is a physics body; enemies are not). */
   pushFrom(x: number, z: number, r: number) {
     for (const e of this.list) {
       if (e.state === 'dead') continue;

@@ -9,7 +9,6 @@ const RADIUS = 0.34;
 const mat = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.75, ...extra });
 
-/** A small adventurer built from primitives, animated procedurally. */
 export class Hero {
   group = new THREE.Group();
   body: CANNON.Body;
@@ -21,29 +20,23 @@ export class Hero {
   private scarfTail: THREE.Mesh;
   private phase = 0;
   private yaw = 0;
-  /** Fishing pose: rod out, right arm raised. `cast` 0..1 drives the casting swing. */
   fishing = false;
   cast = 1;
   private rod = new THREE.Group();
   private rodTipObj = new THREE.Object3D();
-  // sword + combo state
   private sword = new THREE.Group();
-  private attackT = -1; // -1 = idle, else 0..1 through the current swing
+  private attackT = -1;
   private combo = 0;
   private queued = false;
   private hitDone = false;
   private lastSwingEnd = -10;
   private clock = 0;
-  /** Fired once per swing at the moment of impact (world-space centre of the hit, facing direction, combo step). */
   onSlash: (center: THREE.Vector3, forward: THREE.Vector3, combo: number) => void = () => {};
-  // health
   maxHp = 100;
   hp = 100;
   private invuln = 0;
-  /** knocked flat (fainted) */
   down = false;
   private downT = 0;
-  /** Current swing for the trail effect; null when idle. */
   swing: { combo: number; k: number; yaw: number } | null = null;
 
   constructor(x: number, z: number, physics: Physics) {
@@ -62,7 +55,6 @@ export class Hero {
       return mesh;
     };
 
-    // legs pivot at the hips
     for (const side of [-1, 1]) {
       const pivot = new THREE.Group();
       pivot.position.set(side * 0.11, 0.48, 0);
@@ -79,10 +71,8 @@ export class Hero {
     chest.scale.set(1, 1, 0.8);
     part(new THREE.CylinderGeometry(0.215, 0.23, 0.07, 14), mat('#6b4a2b'), this.torso, 0, 0.06, 0);
     part(new THREE.BoxGeometry(0.08, 0.07, 0.03), mat('#f0c850', { metalness: 0.7, roughness: 0.3 }), this.torso, 0, 0.06, 0.2);
-    // tunic skirt
     part(new THREE.CylinderGeometry(0.22, 0.27, 0.16, 14, 1, true), tunic, this.torso, 0, -0.04, 0);
 
-    // arms pivot at the shoulders
     for (const side of [-1, 1]) {
       const pivot = new THREE.Group();
       pivot.position.set(side * 0.27, 0.42, 0);
@@ -93,7 +83,6 @@ export class Hero {
       this.arms.push(pivot);
     }
 
-    // head
     const head = new THREE.Group();
     head.position.y = 0.72;
     this.torso.add(head);
@@ -109,7 +98,6 @@ export class Hero {
     }
     const cap = part(new THREE.SphereGeometry(0.265, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, head, 0, 0.02, -0.02);
     cap.rotation.x = -0.25;
-    // spiky fringe and tufts
     const spike = new THREE.ConeGeometry(0.07, 0.22, 5);
     const spikes: [number, number, number, number, number][] = [
       [-0.12, 0.17, 0.16, 0.9, 0.3], [0, 0.2, 0.18, 1.1, 0], [0.12, 0.17, 0.16, 0.9, -0.3],
@@ -119,7 +107,6 @@ export class Hero {
       const s = part(spike, hair, head, sx, sy, sz);
       s.rotation.set(rx, 0, rz);
     }
-    // scarf
     part(new THREE.TorusGeometry(0.17, 0.05, 6, 14), scarf, this.torso, 0, 0.5, 0).rotation.x = Math.PI / 2;
     this.scarfTail = part(new THREE.BoxGeometry(0.1, 0.32, 0.04), scarf, this.torso, 0.08, 0.36, -0.18);
     this.scarfTail.geometry.translate(0, -0.14, 0);
@@ -127,7 +114,6 @@ export class Hero {
 
     this.group.add(this.model);
 
-    // fishing rod held in the right hand (arms[0]); hidden until fishing
     const rodDir = new THREE.Vector3(0, -0.75, 0.66).normalize();
     const rodLen = 1.5;
     const rodGeo = new THREE.CylinderGeometry(0.008, 0.02, rodLen, 6);
@@ -144,7 +130,6 @@ export class Hero {
     this.rod.visible = false;
     this.arms[0].add(this.rod);
 
-    // sword in the right hand: hangs at the side when walking, extends the arm when swinging
     const steel = new THREE.MeshStandardMaterial({ color: '#e6ecf4', metalness: 0.45, roughness: 0.22, emissive: '#1a2230' });
     const gold = mat('#e8b84a', { metalness: 0.6, roughness: 0.3 });
     const blade = new THREE.Group();
@@ -169,7 +154,6 @@ export class Hero {
     this.sword.position.set(0, -0.32, 0);
     this.arms[0].add(this.sword);
 
-    // physics capsule approximated by a sphere
     this.body = new CANNON.Body({
       mass: 6,
       material: physics.heroMat,
@@ -190,7 +174,6 @@ export class Hero {
     this.group.position.set(this.body.position.x, this.body.position.y - RADIUS, this.body.position.z);
   }
 
-  /** Called before the physics step. */
   drive(input: { x: number; z: number; run: boolean }, dt: number) {
     let { x, z } = input;
     const len = Math.hypot(x, z);
@@ -198,7 +181,6 @@ export class Hero {
     const target = (input.run ? RUN : SPEED);
     const vx = x * target;
     const vz = z * target;
-    // smooth acceleration
     const k = 1 - Math.exp(-dt * 14);
     this.body.velocity.x += (vx - this.body.velocity.x) * k;
     this.body.velocity.z += (vz - this.body.velocity.z) * k;
@@ -215,7 +197,6 @@ export class Hero {
     this.body.velocity.z = 0;
   }
 
-  /** Called after the physics step: animate limbs from real velocity. */
   animate(dt: number, t: number) {
     this.sync();
     this.speed = Math.hypot(this.body.velocity.x, this.body.velocity.z);
@@ -241,16 +222,13 @@ export class Hero {
     this.arms[0].rotation.z = -0.12;
     this.swing = null;
     if (this.attackT >= 0) this.animateAttack(dt);
-    // brief invulnerability after a hit (no blinking)
     if (this.invuln > 0) this.invuln -= dt;
-    // fainted: topple over
     if (this.down) {
       this.downT = Math.min(1, this.downT + dt * 3);
       this.model.rotation.x = -this.downT * Math.PI / 2;
       this.model.position.y = 0.15 * this.downT;
     } else this.model.rotation.x = 0;
     if (this.fishing) {
-      // rod raised; during a cast it swings back over the shoulder and snaps forward
       const swing = this.cast < 1 ? Math.sin(this.cast * Math.PI) * 1.4 : 0;
       this.arms[0].rotation.x = -1.25 + swing;
       this.arms[1].rotation.x = -0.6;
@@ -261,7 +239,6 @@ export class Hero {
 
   get attacking() { return this.attackT >= 0; }
 
-  /** Take a hit from (fromX, fromZ). Returns false while still invulnerable. */
   hurt(dmg: number, fromX: number, fromZ: number): boolean {
     if (this.invuln > 0 || this.down) return false;
     this.hp = Math.max(0, this.hp - dmg);
@@ -274,12 +251,10 @@ export class Hero {
     return true;
   }
 
-  /** Facing angle (radians, 0 = +z / south). */
   get heading() { return this.yaw; }
 
   heal(n: number) { this.hp = Math.min(this.maxHp, this.hp + n); }
 
-  /** Back on your feet at (x, z) with full health. */
   revive(x: number, z: number) {
     this.down = false;
     this.hp = this.maxHp;
@@ -288,7 +263,6 @@ export class Hero {
     this.body.velocity.set(0, 0, 0);
   }
 
-  /** Start a swing, or queue the next combo step if pressed late in the current one. */
   attack() {
     if (this.fishing || this.down) return;
     if (this.attackT >= 0) {
@@ -309,15 +283,13 @@ export class Hero {
     const dur = [0.3, 0.3, 0.44][this.combo];
     this.attackT += dt / dur;
     const k = Math.min(1, this.attackT);
-    const p = THREE.MathUtils.smoothstep(k, 0.08, 0.62); // swing progress after a short wind-up
+    const p = THREE.MathUtils.smoothstep(k, 0.08, 0.62);
     const arm = this.arms[0];
     if (this.combo === 2) {
-      // overhead chop with a little hop
       arm.rotation.x = -3.1 + p * 2.7;
       this.torso.rotation.x = -0.15 + p * 0.45;
       this.model.position.y += Math.sin(k * Math.PI) * 0.22;
     } else {
-      // wide horizontal slash: right→left, then backhand left→right
       const from = this.combo === 0 ? -1.15 : 1.0;
       const to = this.combo === 0 ? 1.2 : -1.25;
       this.torso.rotation.y = from + (to - from) * p;
@@ -344,7 +316,6 @@ export class Hero {
     }
   }
 
-  /** World position of the rod tip (where the line starts). */
   rodTip(out: THREE.Vector3) {
     this.group.updateMatrixWorld(true);
     return this.rodTipObj.getWorldPosition(out);

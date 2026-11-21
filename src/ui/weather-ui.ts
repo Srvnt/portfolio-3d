@@ -1,12 +1,5 @@
-/**
- * Weather menu (under the minimap).
- * - Live: real current weather for a place, from Open-Meteo (free, no API key).
- * - Custom: toggle Sunny / Windy / Snowy / Rainy / Foggy in any combination.
- * The choice is remembered in localStorage.
- */
 import { SunClock, TimeChoice, WeatherState } from '../fx/weather';
 
-/** What the menu drives (WeatherFX). */
 export interface WeatherTarget {
   set(s: WeatherState): void;
   setClock(c: SunClock | null): void;
@@ -26,7 +19,6 @@ const CHIPS: { key: Key; label: string; icon: string }[] = [
   { key: 'fog', label: 'Foggy', icon: '🌫️' },
 ];
 
-/** Short descriptions for WMO weather codes. */
 const WMO: Record<number, string> = {
   0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Rime fog',
   51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle', 56: 'Freezing drizzle', 57: 'Freezing drizzle',
@@ -41,7 +33,6 @@ interface Current {
   wind_speed_10m: number; visibility?: number; rain?: number; snowfall?: number;
 }
 
-/** Turn Open-Meteo's current conditions into our five weather sliders. */
 export function fromOpenMeteo(c: Current): WeatherState {
   const code = c.weather_code;
   const rainy = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95;
@@ -102,7 +93,7 @@ export class WeatherUI {
       if (saved?.mode === 'custom' || saved?.mode === 'live') this.mode = saved.mode;
       if (Array.isArray(saved?.custom)) this.custom = new Set(saved.custom);
       if (['auto', 'day', 'dusk', 'night'].includes(saved?.time)) this.time = saved.time;
-    } catch { /* storage unavailable: use defaults */ }
+    } catch {}
 
     this.pill.addEventListener('click', () => this.togglePanel());
     this.root.querySelectorAll<HTMLButtonElement>('.wx-tabs button').forEach((b) =>
@@ -130,10 +121,8 @@ export class WeatherUI {
     this.root.querySelector('.wx-close')!.addEventListener('click', () => this.togglePanel(false));
     this.root.querySelectorAll<HTMLButtonElement>('.wx-time button').forEach((b) =>
       b.addEventListener('click', () => { this.time = b.dataset.time as TimeChoice; this.sync(); }));
-    // keep the clock on the badge ticking
     window.setInterval(() => this.updateClock(), 15_000);
     this.sync();
-    // the place clock is needed even in Custom mode ("Auto" time)
     if (this.mode === 'custom') this.fetchLive();
   }
 
@@ -150,17 +139,15 @@ export class WeatherUI {
   }
 
   private save() {
-    try { localStorage.setItem(STORE, JSON.stringify({ mode: this.mode, place: this.place, custom: [...this.custom], time: this.time })); } catch { /* ignore */ }
+    try { localStorage.setItem(STORE, JSON.stringify({ mode: this.mode, place: this.place, custom: [...this.custom], time: this.time })); } catch {}
   }
 
-  /** Apply the current mode and refresh the UI. */
   private sync() {
     this.save();
     this.root.querySelectorAll<HTMLButtonElement>('.wx-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.mode === this.mode));
     this.root.querySelectorAll<HTMLButtonElement>('.wx-chip').forEach((b) => b.classList.toggle('on', this.custom.has(b.dataset.key as Key)));
     (this.root.querySelector('.wx-live') as HTMLElement).hidden = this.mode !== 'live';
     (this.root.querySelector('.wx-custom') as HTMLElement).hidden = this.mode !== 'custom';
-    // live weather always uses the place's real clock; custom can pin a time of day
     const time = this.mode === 'live' ? 'auto' : this.time;
     this.fx.setTime(time);
     this.root.querySelectorAll<HTMLButtonElement>('.wx-time button').forEach((b) => b.classList.toggle('on', b.dataset.time === this.time));
@@ -184,7 +171,6 @@ export class WeatherUI {
     this.updateClock();
   }
 
-  /** Local time at the place on the badge (or the pinned time of day in Custom). */
   private updateClock() {
     const el = this.pill.querySelector('.wx-time-now') as HTMLElement;
     const pinned = this.mode === 'custom' && this.time !== 'auto';
@@ -207,8 +193,7 @@ export class WeatherUI {
       if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
       const c = data.current as Current & { is_day?: number };
-      if (this.place !== p) return; // user picked another place meanwhile
-      // place clock: local times come without a zone, so read them as UTC and compare in "local ms"
+      if (this.place !== p) return;
       const tod = (iso?: string | null) => (iso ? ((Date.parse(`${iso}Z`) % 86_400_000) + 86_400_000) % 86_400_000 : null);
       this.fx.setClock({
         utcOffset: data.utc_offset_seconds ?? 0,
@@ -217,7 +202,7 @@ export class WeatherUI {
         isDay: c.is_day !== 0,
       });
       this.updateClock();
-      if (this.mode !== 'live') return; // Custom mode only needed the clock
+      if (this.mode !== 'live') return;
       this.liveState = fromOpenMeteo(c);
       this.temp = `${Math.round(c.temperature_2m)}°C`;
       this.liveText = `${WMO[c.weather_code] ?? 'Weather'} · ${this.temp} · wind ${Math.round(c.wind_speed_10m)} km/h`;

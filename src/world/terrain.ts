@@ -6,7 +6,6 @@ import { canvasTexture, makeCanvas } from './shared';
 export const RIVERBED_Y = -0.32;
 export const GRASS_BASE = '#4f8e32';
 
-/** Height of the land. The village is flat; hills rise outside it to frame the valley. */
 export function heightAt(map: WorldMap, x: number, z: number): number {
   const dx = Math.max(-x, 0, x - map.W);
   const dz = Math.max(-z, 0, z - map.H);
@@ -16,16 +15,14 @@ export function heightAt(map: WorldMap, x: number, z: number): number {
   return Math.pow(d, 1.4) * 0.26 + n * 1.6 * Math.min(1, d / 5);
 }
 
-const PPU = 32; // texture pixels per world unit
+const PPU = 32;
 
-/** Paints grass, organic paths, cobbled plaza, riverbed and soft contact shadows. */
 function paintGround(map: WorldMap): HTMLCanvasElement {
   const W = map.W * PPU;
   const H = map.H * PPU;
   const { canvas, ctx } = makeCanvas(W, H);
   const r = rng(42);
 
-  // grass with soft colour patches
   ctx.fillStyle = GRASS_BASE;
   ctx.fillRect(0, 0, W, H);
   const patches = ['#6aae40', '#559433', '#72b848', '#4f8a30'];
@@ -56,9 +53,7 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
     });
   const isWet = (t: Tile) => t === Tile.Water || t === Tile.Bridge;
 
-  // riverbank sand, then riverbed
   blob('#d9c48e', 1.05, isWet, 4);
-  // cut the river channel out of the ground (transparent → the deeper riverbed shows through)
   blurred(ctx, 6, (l) => {
     l.fillStyle = '#000';
     l.beginPath();
@@ -69,11 +64,9 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
     });
     l.fill();
   }, 'destination-out');
-  // paths: darker rim then light core
   blob('#b8955f', 0.8, (t) => t === Tile.Path, 2);
   blob('#dcc08a', 0.7, (t) => t === Tile.Path, 3);
 
-  // path speckles
   forTiles((t) => t === Tile.Path, (cx, cy, x, z) => {
     for (let k = 0; k < 14; k++) {
       const px = cx + (hash2(x, z, k) - 0.5) * PPU;
@@ -85,7 +78,6 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
     }
   });
 
-  // cobbled plaza
   const [px0, pz0, px1, pz1] = [18, 14, 26, 22];
   ctx.save();
   ctx.beginPath();
@@ -104,7 +96,6 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
       ctx.fill();
     }
   }
-  // circular inlay around the fountain
   ctx.strokeStyle = '#8f846f';
   ctx.lineWidth = 5;
   ctx.beginPath();
@@ -112,9 +103,7 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
   ctx.stroke();
   ctx.restore();
 
-  // ---- ground decals ----
   const dr = rng(99);
-  // moss creeping into the plaza from its edges, plus a few cracked stones
   blurred(ctx, 3, (l) => {
     for (let i = 0; i < 140; i++) {
       const edge = Math.floor(dr() * 4);
@@ -138,7 +127,6 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
     for (let k = 0; k < 4; k++) { x += (dr() - 0.5) * 22; y += (dr() - 0.5) * 22; ctx.lineTo(x, y); }
     ctx.stroke();
   }
-  // damp ring around the fountain
   blurred(ctx, 8, (l) => {
     l.strokeStyle = 'rgba(80,90,85,0.35)';
     l.lineWidth = 0.7 * PPU;
@@ -146,7 +134,6 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
     l.arc(FOUNTAIN.x * PPU, FOUNTAIN.z * PPU, 1.55 * PPU, 0, Math.PI * 2);
     l.stroke();
   });
-  // bare earth and root shadow at tree trunks, dirt patches in the meadow
   blurred(ctx, 5, (l) => {
     for (const p of map.props) {
       if (!p.inside || p.kind === 'rock') continue;
@@ -164,7 +151,6 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
       l.fill();
     }
   });
-  // fallen leaves on paths and plaza near trees
   const leafCols = ['#8fbf4a', '#c9b04a', '#d98a3a', '#b5653a', '#6fa040'];
   for (const p of map.props) {
     if (!p.inside || p.kind !== 'tree') continue;
@@ -184,7 +170,6 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
     }
   }
 
-  // contact shadows (fake ambient occlusion)
   blurred(ctx, 14, (l) => {
     l.fillStyle = 'rgba(20, 30, 10, 0.45)';
     for (const b of BUILDINGS) l.fillRect((b.x0 - 0.2) * PPU, (b.z0 - 0.2) * PPU, (b.w + 0.4) * PPU, (b.d + 0.45) * PPU);
@@ -206,11 +191,6 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
   return canvas;
 }
 
-/**
- * Draw shapes on a scratch layer, then composite it blurred in ONE pass.
- * (Setting ctx.filter and filling shape-by-shape allocates a full-size
- * temporary buffer per shape — that blew memory up to many GB.)
- */
 export function blurred(ctx: CanvasRenderingContext2D, blur: number, draw: (layer: CanvasRenderingContext2D) => void, op: GlobalCompositeOperation = 'source-over') {
   const { canvas: layer, ctx: l } = makeCanvas(ctx.canvas.width, ctx.canvas.height);
   draw(l);
@@ -219,7 +199,7 @@ export function blurred(ctx: CanvasRenderingContext2D, blur: number, draw: (laye
   ctx.globalCompositeOperation = op;
   ctx.drawImage(layer, 0, 0);
   ctx.restore();
-  layer.width = layer.height = 0; // release the scratch buffer now
+  layer.width = layer.height = 0;
 }
 
 export function createTerrain(map: WorldMap) {
@@ -235,14 +215,12 @@ export function createTerrain(map: WorldMap) {
   ground.receiveShadow = true;
   group.add(ground);
 
-  // deeper riverbed under the channel: pebbles and silt, seen through the water
   const bed = new THREE.Mesh(new THREE.PlaneGeometry(map.W, map.H), new THREE.MeshStandardMaterial({ map: riverbedTexture(map), roughness: 1 }));
   bed.rotation.x = -Math.PI / 2;
   bed.position.set(map.W / 2, RIVERBED_Y, map.H / 2);
   bed.receiveShadow = true;
   group.add(bed);
 
-  // rolling hills around the valley (low-poly)
   const M = 34;
   const geo = new THREE.PlaneGeometry(map.W + M * 2, map.H + M * 2, 78, 70);
   geo.rotateX(-Math.PI / 2);
@@ -255,7 +233,6 @@ export function createTerrain(map: WorldMap) {
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
     const h = heightAt(map, x, z);
-    // inside the village the hills sit below the riverbed (hidden under the ground plane)
     pos.setY(i, h > 0 ? h - 0.04 : -0.8);
     c.copy(low).lerp(high, Math.min(1, h / 8)).multiplyScalar(0.92 + valueNoise(x * 0.3, z * 0.3, 9) * 0.16);
     colors.set([c.r, c.g, c.b], i * 3);
@@ -269,7 +246,6 @@ export function createTerrain(map: WorldMap) {
   return group;
 }
 
-/** Silt and pebbles for the river bottom; darker in the deep middle. */
 function riverbedTexture(map: WorldMap): THREE.CanvasTexture {
   const ppu = 16;
   const { canvas, ctx } = makeCanvas(map.W * ppu, map.H * ppu);

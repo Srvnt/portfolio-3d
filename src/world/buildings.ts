@@ -8,14 +8,12 @@ const PLINTH = 0.3;
 const PLASTER = '#f3ead2';
 const TIMBER = '#6b4428';
 
-/** Aged plaster: dirt rising from the ground, rain streaks, cracks, and patches where brick shows through. */
 function weatheredPlaster(seed: number): THREE.CanvasTexture {
   const S = 512;
   const { canvas, ctx } = makeCanvas(S, S);
   const r = rng(seed);
   ctx.fillStyle = PLASTER;
   ctx.fillRect(0, 0, S, S);
-  // soft tonal blotches
   for (let i = 0; i < 60; i++) {
     const x = r() * S, y = r() * S, rad = 20 + r() * 60;
     const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
@@ -24,7 +22,6 @@ function weatheredPlaster(seed: number): THREE.CanvasTexture {
     ctx.fillStyle = g;
     ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
   }
-  // rain streaks from the top
   for (let i = 0; i < 26; i++) {
     const x = r() * S, len = 60 + r() * 180, wdt = 3 + r() * 8;
     const g = ctx.createLinearGradient(0, 0, 0, len);
@@ -33,14 +30,12 @@ function weatheredPlaster(seed: number): THREE.CanvasTexture {
     ctx.fillStyle = g;
     ctx.fillRect(x, 0, wdt, len);
   }
-  // damp, mossy dirt along the bottom
   const dirt = ctx.createLinearGradient(0, S, 0, S * 0.62);
   dirt.addColorStop(0, 'rgba(92,98,58,0.6)');
   dirt.addColorStop(0.45, 'rgba(120,110,80,0.25)');
   dirt.addColorStop(1, 'rgba(120,110,80,0)');
   ctx.fillStyle = dirt;
   ctx.fillRect(0, S * 0.62, S, S * 0.38);
-  // exposed brick patches
   for (let i = 0; i < 3; i++) {
     const px = r() * (S - 120), py = 60 + r() * (S - 200), pw = 60 + r() * 60, ph = 40 + r() * 40;
     ctx.save();
@@ -63,7 +58,6 @@ function weatheredPlaster(seed: number): THREE.CanvasTexture {
     ctx.ellipse(px + pw / 2, py + ph / 2, pw / 2, ph / 2, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
-  // hairline cracks
   ctx.strokeStyle = 'rgba(90,80,60,0.45)';
   ctx.lineWidth = 1.5;
   for (let i = 0; i < 5; i++) {
@@ -76,18 +70,12 @@ function weatheredPlaster(seed: number): THREE.CanvasTexture {
   return canvasTexture(canvas);
 }
 
-/** fractal value noise in [0,1) */
 function fbm(x: number, y: number, seed: number, oct = 4) {
   let a = 0.5, f = 1, sum = 0, norm = 0;
   for (let o = 0; o < oct; o++) { sum += valueNoise(x * f, y * f, seed + o * 17) * a; norm += a; a *= 0.5; f *= 2.03; }
   return sum / norm;
 }
 
-/**
- * Roof moss: large organic cushions with fuzzy edges, bumpy relief (normal map),
- * yellow-green tips over olive depths, rusty spore patches and pale lichen spots.
- * Canvas bottom = eave (uv v=0), top = ridge. Left half = front slope, right half = back.
- */
 function mossTextures(seed: number, span: number, slope: number): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture } {
   const S = 512;
   const { canvas, ctx } = makeCanvas(S, S);
@@ -98,9 +86,7 @@ function mossTextures(seed: number, span: number, slope: number): { map: THREE.C
   const c = new THREE.Color();
   for (let y = 0; y < S; y++) {
     const v = 1 - y / S;
-    // moss loves the damp eaves, a little along the ridge
     const bias = 0.3 * (1 - Math.min(1, v / 0.3)) + 0.12 * Math.max(0, (v - 0.86) / 0.14);
-    // sample noise in roof units so patches keep their true shape on wide roofs
     const wy = v * slope;
     for (let x = 0; x < S; x++) {
       const i = y * S + x;
@@ -110,17 +96,15 @@ function mossTextures(seed: number, span: number, slope: number): { map: THREE.C
       const density = n + bias - 0.56 + grain * 0.06;
       let a = 0;
       if (density > 0) {
-        // cushion relief: thick in the middle, small round bumps on top
         const bumps = fbm(wx / 0.11, wy / 0.11, seed + 9, 3);
         const h = Math.min(1, density * 9) * (0.6 + bumps * 0.55);
         height[i] = h;
         const sp = fbm(wx / 0.45, wy / 0.45, seed + 21, 2);
         c.copy(deep).lerp(mid, Math.min(1, h * 1.4)).lerp(tip, Math.max(0, (bumps - 0.5) * 1.6) * h);
-        if (sp > 0.68) c.lerp(rust, Math.min(1, (sp - 0.68) * 5) * 0.7); // spore stalks
+        if (sp > 0.68) c.lerp(rust, Math.min(1, (sp - 0.68) * 5) * 0.7);
         c.multiplyScalar(0.88 + grain * 0.25);
         a = Math.min(1, density * 14) * 255;
       } else {
-        // lichen rosettes on bare shingles
         const l = valueNoise(wx / 0.11, wy / 0.11, seed + 31);
         if (l > 0.86 && valueNoise(wx / 0.9, wy / 0.9, seed + 33) > 0.45) {
           c.copy(lichen).multiplyScalar(0.9 + grain * 0.3);
@@ -134,7 +118,6 @@ function mossTextures(seed: number, span: number, slope: number): { map: THREE.C
   }
   ctx.putImageData(img, 0, 0);
 
-  // normal map from the height field
   const { canvas: nc, ctx: nctx } = makeCanvas(S, S);
   const nimg = nctx.createImageData(S, S);
   const H = (x: number, y: number) => height[Math.min(S - 1, Math.max(0, y)) * S + Math.min(S - 1, Math.max(0, x))];
@@ -155,7 +138,6 @@ function mossTextures(seed: number, span: number, slope: number): { map: THREE.C
   return { map: canvasTexture(canvas), normalMap };
 }
 
-/** Soft shingle texture tinted per roof colour. */
 export function shingleTexture(color: string): THREE.CanvasTexture {
   const { canvas, ctx } = makeCanvas(128, 128);
   const base = new THREE.Color(color);
@@ -181,7 +163,6 @@ export function shingleTexture(color: string): THREE.CanvasTexture {
   return t;
 }
 
-/** Pitched roof with overhang (ridge along x) and gables. */
 export function roofGeometry(w: number, d: number, y0: number, hr: number, o: number): THREE.BufferGeometry {
   const x0 = -w / 2 - o, x1 = w / 2 + o;
   const zf = d / 2 + o, zb = -d / 2 - o;
@@ -202,7 +183,6 @@ export function roofGeometry(w: number, d: number, y0: number, hr: number, o: nu
   pos.push(w / 2, y0, d / 2, w / 2, y0, -d / 2, w / 2, yr, 0);
   pos.push(-w / 2, y0, -d / 2, -w / 2, y0, d / 2, -w / 2, yr, 0);
   uv.push(0, 0, 1, 0, 0.5, 1, 0, 0, 1, 0, 0.5, 1);
-  // roof thickness: a thin fascia under the eaves
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
@@ -232,14 +212,13 @@ export function createBuilding(b: Building): BuildingResult {
   const stone = standard({ color: '#a9a397' });
   const accent = standard({ color: b.accent });
   const glass = new THREE.MeshStandardMaterial({ color: '#ffe3a0', emissive: '#ffbf5a', emissiveIntensity: 1.6, roughness: 0.3 });
-  glass.name = 'window-glass'; // the day-night cycle brightens these at night
+  glass.name = 'window-glass';
   const { w, d } = b;
   const wallTop = PLINTH + WALL_H;
 
   add(new THREE.BoxGeometry(w + 0.25, PLINTH, d + 0.25), stone, 0, PLINTH / 2, 0);
   add(new THREE.BoxGeometry(w, WALL_H, d), plaster, 0, PLINTH + WALL_H / 2, 0);
 
-  // timber framing
   const post = new THREE.BoxGeometry(0.2, WALL_H, 0.2);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(post, timber, (sx * w) / 2, PLINTH + WALL_H / 2, (sz * d) / 2);
   const beamX = new THREE.BoxGeometry(w + 0.1, 0.16, 0.12);
@@ -251,7 +230,6 @@ export function createBuilding(b: Building): BuildingResult {
     add(beamZ, timber, -w / 2 - 0.02, y, 0);
   }
 
-  // door with frame, knob and step
   const doorH = 1.45;
   add(new THREE.BoxGeometry(1.05, doorH + 0.15, 0.1), timber, 0, PLINTH + (doorH + 0.15) / 2, d / 2 + 0.04);
   add(new THREE.BoxGeometry(0.82, doorH, 0.1), standard({ color: '#8a5a32' }), 0, PLINTH + doorH / 2, d / 2 + 0.08);
@@ -259,11 +237,9 @@ export function createBuilding(b: Building): BuildingResult {
   knob.position.set(0.25, PLINTH + doorH * 0.48, d / 2 + 0.15);
   g.add(knob);
   add(new THREE.BoxGeometry(1.3, 0.14, 0.45), stone, 0, 0.07, d / 2 + 0.3);
-  // awning over the door in the accent colour
   const awning = add(new THREE.BoxGeometry(1.4, 0.08, 0.6), accent, 0, PLINTH + doorH + 0.32, d / 2 + 0.3);
   awning.rotation.x = 0.35;
 
-  // windows: glowing glass, cross bars, shutters, flower boxes
   const win = (x: number, z: number, rotY: number) => {
     const wg = new THREE.Group();
     const y = PLINTH + WALL_H * 0.55 + 0.5;
@@ -302,13 +278,11 @@ export function createBuilding(b: Building): BuildingResult {
   win(w / 2 + 0.03, 0, Math.PI / 2);
   win(-w / 2 - 0.03, 0, -Math.PI / 2);
 
-  // roof
   const roofMat = standard({ map: shingleTexture(b.roof), flatShading: true });
   const roof = new THREE.Mesh(roofGeometry(w, d, wallTop, ROOF_H, 0.45), [roofMat, plaster]);
   roof.castShadow = roof.receiveShadow = true;
   g.add(roof);
 
-  // moss layer over both roof slopes (non-repeating UVs so patches don't tile)
   const slopes = roof.geometry.attributes.position.array.slice(0, 12 * 3) as Float32Array;
   const mossGeo = new THREE.BufferGeometry();
   mossGeo.setAttribute('position', new THREE.Float32BufferAttribute(slopes, 3));
@@ -317,7 +291,6 @@ export function createBuilding(b: Building): BuildingResult {
   for (let i = 0; i < 12; i++) { maxU = Math.max(maxU, src[i * 2]); maxV = Math.max(maxV, src[i * 2 + 1]); }
   const mossUv = new Float32Array(24);
   for (let i = 0; i < 12; i++) {
-    // back slope runs right-to-left; mirror u and offset so the two slopes differ
     mossUv[i * 2] = (src[i * 2] / maxU) * 0.5 + (i >= 6 ? 0.5 : 0);
     mossUv[i * 2 + 1] = src[i * 2 + 1] / maxV;
   }
@@ -344,7 +317,6 @@ export function createBuilding(b: Building): BuildingResult {
     chimneyTop = new THREE.Vector3(b.x0 + w / 2 + cx, wallTop + ROOF_H + 0.7, b.z0 + d / 2 + cz);
   }
 
-  // a banner pole on the guild
   if (b.id === 'guild') {
     const pole = add(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 6), timber, w / 2 - 0.6, wallTop + ROOF_H + 0.3, 0);
     pole.castShadow = true;
@@ -358,7 +330,6 @@ export function createBuilding(b: Building): BuildingResult {
   return { group: g, chimneyTop };
 }
 
-/** Wave any flags in the scene. */
 export function animateFlags(root: THREE.Object3D, t: number) {
   root.traverse((o) => {
     if (!o.userData.flag) return;

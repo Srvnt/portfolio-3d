@@ -31,8 +31,6 @@ function renderSection(id: SectionId, c: Content): string {
           </article>`)
           .join('')}</div>`;
     case 'skills': {
-      // RPG skill tree: main skills across the top, the skills they unlocked branching below.
-      // Nodes light up one after another (staggered animation delay).
       let order = 0;
       const node = (n: SkillNode, major: boolean): string => {
         const icon = n.icon ?? n.name.slice(0, 2);
@@ -78,7 +76,6 @@ export class UI {
 
   constructor(private content: Content) {
     $('#title .title-name').textContent = content.profile.name;
-    // "Main role | specialty" → main role on one line, specialty smaller below
     const [main, ...rest] = content.profile.role.split('|').map((s) => s.trim());
     $('#title .title-role').innerHTML = esc(main) + (rest.length ? `<span class="title-sub">${esc(rest.join(' · '))}</span>` : '');
     document.title = `${content.profile.name} — Portfolio`;
@@ -86,7 +83,6 @@ export class UI {
     this.panelWrap.addEventListener('click', (e) => { if (e.target === this.panelWrap) this.closePanel(); });
   }
 
-  // ---------------------------------------------------------- title
   waitForStart(): Promise<void> {
     const el = $('#title');
     return new Promise((resolve) => {
@@ -102,7 +98,6 @@ export class UI {
     });
   }
 
-  // ---------------------------------------------------------- dialog
   get dialogOpen() { return !this.dialogEl.hidden; }
 
   dialog(name: string, lines: string[], done: () => void) {
@@ -115,7 +110,6 @@ export class UI {
     this.renderLine();
   }
 
-  /** Finish the current line, or go to the next one. */
   advance() {
     const full = this.lines[this.line];
     if (this.shown < full.length) { this.shown = full.length; this.renderLine(); return; }
@@ -147,7 +141,6 @@ export class UI {
     this.dialogMore.style.visibility = this.shown >= full.length ? 'visible' : 'hidden';
   }
 
-  // ---------------------------------------------------------- panel
   get panelOpen() { return !this.panelWrap.hidden; }
 
   openPanel(id: SectionId) {
@@ -165,7 +158,6 @@ export class UI {
     this.onPanelClose?.();
   }
 
-  // ---------------------------------------------------------- combat HUD
   private hud = $('#hud');
   private hpEl = $('#hud .hp');
   private hpFill = $('#hud .hp-fill');
@@ -189,7 +181,6 @@ export class UI {
     this.hpEl.classList.toggle('low', r <= 0.25);
   }
 
-  /** Floating number at a world position. */
   damageNumber(at: THREE.Vector3, text: string, kind: 'hit' | 'crit' | 'hero' | 'heal', camera: THREE.Camera) {
     const v = at.clone().project(camera);
     if (v.z > 1) return;
@@ -202,7 +193,6 @@ export class UI {
     setTimeout(() => el.remove(), 950);
   }
 
-  // ---------------------------------------------------------- fishing
   private fishHintEl = $('#fish-hint');
   private fishAlertEl = $('#fish-alert');
 
@@ -236,7 +226,6 @@ export class UI {
     this.fishAlertEl.style.setProperty('--pos', pos);
   }
 
-  // ---------------------------------------------------------- floating labels
   setLabels(items: Interactable[]) {
     const root = $('#labels');
     for (const it of items) {

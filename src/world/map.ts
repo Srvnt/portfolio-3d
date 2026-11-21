@@ -1,11 +1,6 @@
-/**
- * World layout. Tile coords: x → east, z → south (toward the camera). 1 tile = 1 world unit.
- * Edit BUILDINGS / CHESTS / roads here to reshape the village.
- */
 import { hash2, valueNoise } from '../core/random';
 
 export enum Tile { Grass = 0, Path = 1, Water = 2, Bridge = 3 }
-/** What occupies a blocked tile. */
 export enum Occ { None = 0, Prop = 1, Building = 2, Fixture = 3 }
 
 export type SectionId = 'about' | 'projects' | 'skills' | 'experience' | 'contact';
@@ -29,19 +24,16 @@ export interface Interactable {
   labelPos: [number, number, number];
   section?: SectionId;
   index?: number;
-  /** Custom dialog lines (signs). */
   text?: string[];
 }
 
 export type EnemyKind = 'jelly' | 'beetle' | 'brute';
-/** Wild areas where monsters roam. The village (SAFE) is never entered by them. */
 export const SPAWN_ZONES: { x0: number; z0: number; x1: number; z1: number; kinds: EnemyKind[] }[] = [
   { x0: 47, z0: 3, x1: 68, z1: 14, kinds: ['jelly', 'jelly', 'beetle'] },
   { x0: 47, z0: 21, x1: 68, z1: 40, kinds: ['beetle', 'jelly', 'brute', 'jelly'] },
   { x0: 4, z0: 38, x1: 29, z1: 54, kinds: ['jelly', 'jelly', 'beetle', 'brute'] },
   { x0: 39, z0: 43, x1: 68, z1: 54, kinds: ['brute', 'beetle', 'jelly'] },
 ];
-/** The village: monsters stay out and the hero slowly heals here. */
 export const SAFE = { x0: 0, z0: 0, x1: 45, z1: 35 };
 
 export interface Prop { kind: 'tree' | 'bush' | 'rock'; x: number; z: number; v: number; inside: boolean }
@@ -60,7 +52,6 @@ export const BUILDINGS: Building[] = [
 const CHESTS: [number, number][] = [[3, 3], [40, 33], [14, 33], [65, 6], [6, 53]];
 export const SIGN: [number, number] = [19, 15];
 export const FOUNTAIN = { x: 22, z: 17.5 };
-/** The village gate (with the name) spans the south road just below the plaza. */
 export const GATE = { x: 22, z: 22.4, span: 5.0 };
 
 export class WorldMap {
@@ -72,15 +63,10 @@ export class WorldMap {
   private reserved: Uint8Array;
   props: Prop[] = [];
   interactables: Interactable[] = [];
-  /** Free spots for pushable crates and barrels. */
   crateSpots: { x: number; z: number; kind: 'crate' | 'barrel' }[] = [];
   start = { x: 22, z: 23.5 };
   private center: Float32Array = new Float32Array(0);
 
-  /**
-   * If (x, z) is on a riverbank or a bridge, where should the bobber land? Null otherwise.
-   * Banks: cast toward the middle of the river. Bridges: cast over the downstream rail.
-   */
   riverSpot(x: number, z: number): { x: number; z: number } | null {
     const tx = Math.floor(x), tz = Math.floor(z);
     if (this.tile(tx, tz) === Tile.Bridge) {
@@ -90,12 +76,10 @@ export class WorldMap {
     const c = this.riverCenter(z);
     const d = Math.abs(x - c);
     if (d < 1.4 || d > 2.9) return null;
-    // the water tile between the hero and the centre must actually be river (not a bridge row)
     if (this.tile(Math.floor(c), tz) !== Tile.Water) return null;
     return { x: c + Math.sign(x - c) * 0.35, z };
   }
 
-  /** X of the river's centre line at any z (smoothly interpolated between rows). */
   riverCenter(z: number): number {
     const zc = Math.min(this.H - 1, Math.max(0, z - 0.5));
     const z0 = Math.floor(zc), z1 = Math.min(this.H - 1, z0 + 1);
@@ -146,7 +130,6 @@ export class WorldMap {
     this.road(2, 17, W - 3, 18);
     this.road(4, 29, 30, 30);
     this.road(21, 10, 22, 50);
-    // roads into the wilds: a southern east-west road (second bridge) and an eastern loop
     this.road(6, 46, W - 8, 47);
     this.road(56, 18, 57, 46);
     this.road(18, 14, 25, 21);
@@ -155,7 +138,6 @@ export class WorldMap {
     this.road(28, 27, 28, 28);
     this.road(39, 15, 39, 16);
 
-    // river centre line (bridge tiles count as river)
     this.center = new Float32Array(H);
     for (let z = 0; z < H; z++) {
       let sum = 0, n = 0;
@@ -166,7 +148,6 @@ export class WorldMap {
       this.center[z] = n ? sum / n : W / 2;
     }
 
-    // riverside footpaths down to the water (you can fish from any bank; see riverSpot())
     const westBank = (z: number) => { let x = 0; while (x < W && this.tiles[this.i(x, z)] !== Tile.Water) x++; return x - 1; };
     const eastBank = (z: number) => { let x = W - 1; while (x >= 0 && this.tiles[this.i(x, z)] !== Tile.Water) x--; return x + 1; };
     const riverside = (z0: number, z1: number, bank: (z: number) => number) => {
@@ -195,18 +176,16 @@ export class WorldMap {
       this.rect(b.x0 - 1, dz, b.x0 + b.w, dz + 1, (x, z, i) => {
         if (this.tiles[i] === Tile.Grass && hash2(x, z, 21) < 0.6) this.flowers[i] = 1;
       });
-      // crates/barrels beside the front corners
       const spots: [number, number][] = [[b.x0 - 0.55, b.z0 + b.d - 0.4], [b.x0 + b.w + 0.55, b.z0 + b.d - 0.4]];
       spots.forEach(([x, z], k) => {
         if (!this.isBlocked(Math.floor(x), Math.floor(z)) && this.tile(Math.floor(x), Math.floor(z)) === Tile.Grass)
           this.crateSpots.push({ x, z, kind: k === 0 ? 'barrel' : 'crate' });
       });
     }
-    // plaza corners
     this.crateSpots.push({ x: 18.6, z: 14.6, kind: 'crate' }, { x: 19.3, z: 14.5, kind: 'crate' }, { x: 25.4, z: 14.6, kind: 'barrel' }, { x: 24.7, z: 14.5, kind: 'barrel' });
 
-    this.rect(21, 16, 22, 18, (_x, _z, i) => (this.occ[i] = Occ.Fixture)); // fountain
-    for (const side of [-1, 1]) this.occ[this.i(Math.floor(GATE.x + side * GATE.span / 2), Math.floor(GATE.z))] = Occ.Fixture; // gate pillars
+    this.rect(21, 16, 22, 18, (_x, _z, i) => (this.occ[i] = Occ.Fixture));
+    for (const side of [-1, 1]) this.occ[this.i(Math.floor(GATE.x + side * GATE.span / 2), Math.floor(GATE.z))] = Occ.Fixture;
     this.occ[this.i(SIGN[0], SIGN[1])] = Occ.Fixture;
     this.interactables.push({
       id: 'sign', kind: 'sign', label: 'Signpost',
@@ -214,7 +193,6 @@ export class WorldMap {
       labelPos: [SIGN[0] + 0.5, 2.3, SIGN[1] + 0.5],
     });
 
-    // warning signs where the roads leave the village
     for (const [id, x, z] of [['warn-east', 45, 15], ['warn-south', 23, 35]] as [string, number, number][]) {
       this.occ[this.i(x, z)] = Occ.Fixture;
       this.interactables.push({
@@ -256,7 +234,6 @@ export class WorldMap {
       }
     }
 
-    // decorative forest on the hills outside the map
     for (let z = -12; z < H + 8; z++)
       for (let x = -12; x < W + 12; x++) {
         if (this.inside(x, z)) continue;

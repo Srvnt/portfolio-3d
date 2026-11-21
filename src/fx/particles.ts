@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { WorldMap } from '../world/map';
 import { uniforms } from '../world/shared';
 
-/** Glowing pollen / fireflies drifting over the whole valley (all motion in the shader). */
 export function createMotes(map: WorldMap, count = 260): THREE.Points {
   const pos = new Float32Array(count * 3);
   const seed = new Float32Array(count);
@@ -18,20 +17,19 @@ export function createMotes(map: WorldMap, count = 260): THREE.Points {
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     uniforms: { uTime: uniforms.uTime, uNight: uniforms.uNight, uScale: { value: window.innerHeight * 0.5 } },
-    vertexShader: /* glsl */ `
+    vertexShader: `
       attribute float aSeed; uniform float uTime; uniform float uScale; uniform float uNight; varying float vA;
       void main(){
         vec3 p = position;
         p.x += sin(uTime * 0.3 + aSeed) * 0.8;
         p.z += cos(uTime * 0.25 + aSeed * 1.3) * 0.8;
         p.y += sin(uTime * 0.6 + aSeed * 2.0) * 0.35;
-        // fireflies: brighter and livelier after dark
         vA = (0.55 + 0.45 * sin(uTime * (2.0 + uNight * 2.0) + aSeed * 5.0)) * (0.6 + uNight * 1.6);
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
         gl_PointSize = uScale * 0.07 / -mv.z;
         gl_Position = projectionMatrix * mv;
       }`,
-    fragmentShader: /* glsl */ `
+    fragmentShader: `
       varying float vA;
       void main(){
         float d = length(gl_PointCoord - 0.5);
@@ -43,7 +41,6 @@ export function createMotes(map: WorldMap, count = 260): THREE.Points {
   return pts;
 }
 
-/** Leaves and blossom petals drifting down from the village trees, tumbling as they fall. */
 export function createFallingLeaves(map: WorldMap, count = 220): THREE.Points {
   const trees = map.props.filter((p) => p.kind === 'tree' && p.inside);
   const pos = new Float32Array(count * 3);
@@ -65,7 +62,7 @@ export function createFallingLeaves(map: WorldMap, count = 220): THREE.Points {
     transparent: true,
     depthWrite: false,
     uniforms: { uTime: uniforms.uTime, uScale: { value: window.innerHeight * 0.5 } },
-    vertexShader: /* glsl */ `
+    vertexShader: `
       attribute vec2 aSeed; attribute vec3 aColor;
       uniform float uTime; uniform float uScale;
       varying float vA; varying float vRot; varying vec3 vColor;
@@ -82,13 +79,13 @@ export function createFallingLeaves(map: WorldMap, count = 220): THREE.Points {
         gl_PointSize = uScale * 0.11 / -mv.z;
         gl_Position = projectionMatrix * mv;
       }`,
-    fragmentShader: /* glsl */ `
+    fragmentShader: `
       varying float vA; varying float vRot; varying vec3 vColor;
       void main(){
         vec2 q = gl_PointCoord - 0.5;
         float s = sin(vRot), c = cos(vRot);
         q = mat2(c, -s, s, c) * q;
-        q.x *= 1.0 + abs(sin(vRot * 0.5)) * 1.5; // flip as it tumbles
+        q.x *= 1.0 + abs(sin(vRot * 0.5)) * 1.5;
         float d = length(q * vec2(2.2, 1.0));
         if (d > 0.5) discard;
         gl_FragColor = vec4(vColor * (0.85 + 0.3 * (0.5 - d)), vA);
@@ -98,13 +95,11 @@ export function createFallingLeaves(map: WorldMap, count = 220): THREE.Points {
   return pts;
 }
 
-/** Pooled puffs: chimney smoke and footstep dust. */
 export class Puffs {
   group = new THREE.Group();
   private pool: { m: THREE.Mesh; life: number; max: number; vel: THREE.Vector3; grow: number }[] = [];
   private next = 0;
 
-  /** gravity > 0 makes particles fall and tumble (leaf bursts); 0 for drifting smoke/dust. */
   constructor(count: number, color: string, opacity: number, private gravity = 0) {
     const geo = gravity ? new THREE.CircleGeometry(0.2, 5) : new THREE.IcosahedronGeometry(0.2, 1);
     for (let i = 0; i < count; i++) {
@@ -136,7 +131,7 @@ export class Puffs {
       if (k >= 1) { p.m.visible = false; continue; }
       if (this.gravity) {
         p.vel.y -= this.gravity * dt;
-        p.vel.multiplyScalar(1 - dt * 1.5); // air drag: leaves flutter down
+        p.vel.multiplyScalar(1 - dt * 1.5);
         p.m.rotation.x += dt * 7;
         p.m.rotation.z += dt * 5;
       }
@@ -148,7 +143,6 @@ export class Puffs {
   }
 }
 
-/** Butterflies fluttering around flower patches. */
 export class Butterflies {
   group = new THREE.Group();
   private flies: { g: THREE.Group; wings: THREE.Group[]; home: THREE.Vector3; seed: number }[] = [];
@@ -194,7 +188,6 @@ export class Butterflies {
   }
 }
 
-/** Expanding rings on the water surface. */
 export class Ripples {
   group = new THREE.Group();
   private pool: { m: THREE.Mesh; life: number; max: number; size: number }[] = [];
@@ -228,10 +221,6 @@ export class Ripples {
   }
 }
 
-/**
- * Glowing arc that trails the sword. Horizontal slashes draw on a flat ring around the hero,
- * the overhead chop on a vertical one. Angles are fed each frame from the hero's swing.
- */
 export class Swoosh {
   group = new THREE.Group();
   private flat: THREE.Mesh;
@@ -246,10 +235,10 @@ export class Swoosh {
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       uniforms: { uHead: { value: 0 }, uTail: { value: 0 }, uAlpha: { value: 0 } },
-      vertexShader: /* glsl */ `
+      vertexShader: `
         varying vec2 vP;
         void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-      fragmentShader: /* glsl */ `
+      fragmentShader: `
         uniform float uHead, uTail, uAlpha; varying vec2 vP;
         void main(){
           float a = atan(vP.y, vP.x);
@@ -276,7 +265,6 @@ export class Swoosh {
     this.group.add(this.flat, this.upright);
   }
 
-  /** `swing` from Hero; arm angles reconstructed from the same easing the hero uses. */
   update(dt: number, x: number, y: number, z: number, swing: { combo: number; k: number; yaw: number } | null) {
     this.group.position.set(x, y, z);
     if (swing) {
@@ -290,10 +278,9 @@ export class Swoosh {
       const u = (mesh.material as THREE.ShaderMaterial).uniforms;
       let head: number, start: number;
       if (swing.combo === 2) {
-        // hand direction (0, -cos α, -sin α) for arm angle α → ring angle atan2(-cos α, sin α)
         const ang = (al: number) => Math.atan2(-Math.cos(al), Math.sin(al));
         start = ang(-3.1);
-        head = start + p * 2.7; // ring angle = arm angle + 3π/2, so it grows with the swing (unwrapped)
+        head = start + p * 2.7;
       } else {
         const from = swing.combo === 0 ? -1.15 : 1.0;
         const to = swing.combo === 0 ? 1.2 : -1.25;

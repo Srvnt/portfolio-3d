@@ -33,7 +33,6 @@ function woodTexture(): THREE.CanvasTexture {
   return canvasTexture(canvas);
 }
 
-/** Crates and barrels you can shove around. */
 export function createPushables(map: WorldMap, physics: Physics): THREE.Group {
   const group = new THREE.Group();
   const crateMat = new THREE.MeshStandardMaterial({ map: woodTexture(), roughness: 0.85 });
@@ -67,12 +66,6 @@ export function createPushables(map: WorldMap, physics: Physics): THREE.Group {
   return group;
 }
 
-/**
- * The village gate over the south road: a timber gate on stone bases with its own little
- * shingled roof (like the houses), a deep-blue signboard with the name in gold tilted toward
- * the camera, pennant banners, hanging lanterns, ivy and flower boxes. Walk underneath;
- * only the posts are solid.
- */
 export function createGate(text: string, physics: Physics) {
   const g = new THREE.Group();
   const { x: cx, z: cz, span } = GATE;
@@ -93,25 +86,20 @@ export function createGate(text: string, physics: Physics) {
 
   for (const side of [-1, 1]) {
     const x = side * span / 2;
-    // stone base with a chamfered cap
     add(new THREE.BoxGeometry(0.78, 0.5, 0.78), stone, x, 0.25, 0);
     add(new THREE.BoxGeometry(0.62, 0.1, 0.62), stone, x, 0.55, 0);
-    // square timber post with iron bands near the top and bottom
     add(new THREE.BoxGeometry(0.36, POST_TOP - 0.5, 0.36), timber, x, 0.5 + (POST_TOP - 0.5) / 2, 0);
     for (const y of [0.85, POST_TOP - 0.45]) add(new THREE.BoxGeometry(0.4, 0.07, 0.4), iron, x, y, 0);
-    // knee brace from post to beam
     const brace = add(new THREE.BoxGeometry(0.12, 0.85, 0.16), timberDark, x - side * 0.34, BEAM_Y - 0.42, 0);
     brace.rotation.z = side * 0.75;
     physics.cylinder(cx + x, cz, 0.42, 1.6);
   }
-  // tie beam with protruding, carved ends
   add(new THREE.BoxGeometry(span + 1.3, 0.3, 0.42), timber, 0, BEAM_Y, 0);
   for (const side of [-1, 1]) {
     const end = add(new THREE.CylinderGeometry(0.2, 0.2, 0.42, 12, 1, false, 0, Math.PI), timber, side * (span / 2 + 0.65), BEAM_Y, 0);
     end.rotation.set(Math.PI / 2, 0, side > 0 ? -Math.PI / 2 : Math.PI / 2);
   }
 
-  // little gable roof, shingled like the houses
   const roof = new THREE.Mesh(roofGeometry(span + 0.7, 0.6, POST_TOP + 0.02, 0.7, 0.3), [
     new THREE.MeshStandardMaterial({ map: shingleTexture('#c4573a'), roughness: 0.8, flatShading: true }),
     timberDark,
@@ -121,8 +109,6 @@ export function createGate(text: string, physics: Physics) {
   ridge.rotation.z = Math.PI / 2;
   for (const side of [-1, 1]) add(new THREE.SphereGeometry(0.11, 12, 8), gold, side * (span / 2 + 0.7), POST_TOP + 0.76, 0);
 
-  // signboard mounted on the front of the roof like a crest, angled up toward the camera
-  // (the camera looks down from the south, so a hanging sign would hide under the roof)
   const sign = new THREE.Group();
   sign.position.set(0, POST_TOP + 0.98, 0.78);
   sign.rotation.x = -0.72;
@@ -142,10 +128,8 @@ export function createGate(text: string, physics: Physics) {
   const boardGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.04, bevelSegments: 3 });
   boardGeo.translate(0, 0, -0.04);
   add(boardGeo, standard({ color: '#22357a', flatShading: false, roughness: 0.55 }), 0, 0, 0, sign);
-  // gold frame
   const frame = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(shape.getPoints(10).map((p) => new THREE.Vector3(p.x * 0.95, (p.y + boardH / 2) * 0.88 - boardH / 2, 0))), 64, 0.022, 5, true);
   add(frame, gold, 0, 0, 0.075, sign);
-  // the name
   const font = new FontLoader().parse(fontJson as never);
   const textGeo = new TextGeometry(text, { font, size: 0.4, depth: 0.04, curveSegments: 8, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2 });
   textGeo.computeBoundingBox();
@@ -155,15 +139,12 @@ export function createGate(text: string, physics: Physics) {
   textGeo.translate(-(bb.min.x + tw / 2), -(bb.min.y + th / 2), 0);
   textGeo.scale(fit, fit, 1);
   add(textGeo, gold, 0, -boardH / 2, 0.07, sign);
-  // little stars either side of the name
   for (const side of [-1, 1]) {
     const star = add(new THREE.OctahedronGeometry(0.07, 0), gold, side * (boardW / 2 - 0.22), -boardH / 2, 0.08, sign);
     star.scale.z = 0.4;
   }
-  // iron brackets holding the crest to the roof
   for (const side of [-1, 1]) add(new THREE.BoxGeometry(0.06, 0.06, 0.5), iron, side * (boardW / 2 - 0.35), -boardH + 0.05, -0.25, sign);
 
-  // hanging lanterns at the beam ends
   for (const side of [-1, 1]) {
     const lx = side * (span / 2 + 0.55);
     add(new THREE.CylinderGeometry(0.012, 0.012, 0.32, 4), iron, lx, BEAM_Y - 0.3, 0.05);
@@ -172,7 +153,6 @@ export function createGate(text: string, physics: Physics) {
     add(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 6), iron, lx, BEAM_Y - 0.8, 0.05);
   }
 
-  // pennant banners on the front of the posts
   const pennant = new THREE.Shape();
   pennant.moveTo(-0.17, 0);
   pennant.lineTo(0.17, 0);
@@ -192,7 +172,6 @@ export function createGate(text: string, physics: Physics) {
     banners.push(b);
   }
 
-  // ivy: leaf cards spiralling up each post, thicker near the ground
   const leafMat = new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8, vertexColors: true });
   const leaves: THREE.BufferGeometry[] = [];
   const dark = new THREE.Color('#1f5226'), light = new THREE.Color('#7cbc4c'), c = new THREE.Color();
@@ -214,7 +193,6 @@ export function createGate(text: string, physics: Physics) {
     }
   g.add(new THREE.Mesh(mergeGeometries(leaves)!, leafMat));
 
-  // flower boxes in front of the bases
   const flowerCols = ['#ff7aa8', '#ffe066', '#ffffff', '#b99cff'];
   for (const side of [-1, 1]) {
     const fx = side * span / 2;
@@ -230,7 +208,6 @@ export function createGate(text: string, physics: Physics) {
   return {
     group: g,
     setNight(n: number, t: number) { glow.emissiveIntensity = 0.2 + n * 3.4 * (1 + Math.sin(t * 9) * 0.03); },
-    /** Banners and the sign sway in the wind. */
     animate(t: number, wind: number) {
       banners.forEach((b, i) => { b.rotation.x = Math.sin(t * (1.5 + wind * 3) + i) * (0.05 + wind * 0.22) - wind * 0.12; });
       sign.rotation.z = Math.sin(t * (1.1 + wind * 2)) * (0.006 + wind * 0.03);
@@ -336,7 +313,6 @@ export function createFountain() {
   top.position.y = 1.33;
   g.add(top);
 
-  // spray particles computed in the shader
   const N = 160;
   const seeds = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) seeds.set([Math.random(), Math.random() * Math.PI * 2, 0.6 + Math.random() * 0.6], i * 3);
@@ -347,7 +323,7 @@ export function createFountain() {
     transparent: true,
     depthWrite: false,
     uniforms: { uTime: uniforms.uTime, uScale: { value: window.innerHeight * 0.5 } },
-    vertexShader: /* glsl */ `
+    vertexShader: `
       attribute vec3 aSeed; uniform float uTime; uniform float uScale; varying float vA;
       void main(){
         float t = fract(uTime * 0.7 * aSeed.z + aSeed.x);
@@ -358,7 +334,7 @@ export function createFountain() {
         gl_PointSize = uScale * 0.05 / -mv.z;
         gl_Position = projectionMatrix * mv;
       }`,
-    fragmentShader: /* glsl */ `
+    fragmentShader: `
       varying float vA;
       void main(){
         float d = length(gl_PointCoord - 0.5);
@@ -372,7 +348,6 @@ export function createFountain() {
   return g;
 }
 
-/** A wooden bridge over every bridge-tile run. */
 export function createBridges(map: WorldMap): THREE.Group {
   const g = new THREE.Group();
   const plank = standard({ color: '#a8743f' });
@@ -383,7 +358,6 @@ export function createBridges(map: WorldMap): THREE.Group {
       const b = x < map.W && map.tile(x, z) === Tile.Bridge;
       if (b && x0 < 0) x0 = x;
       if (!b && x0 >= 0) {
-        // only build once per bridge (rows are merged)
         if (map.tile(x0, z - 1) !== Tile.Bridge) {
           let z1 = z;
           while (map.tile(x0, z1 + 1) === Tile.Bridge) z1++;
@@ -413,7 +387,6 @@ export function createBridges(map: WorldMap): THREE.Group {
   return shadowed(g);
 }
 
-/** Village lanterns: posts with glass lamps that light up at dusk. A few carry real point lights. */
 export function createLanterns(physics: Physics, withLights: number) {
   const spots: [number, number][] = [[17.5, 21.6], [26.5, 21.6], [17.5, 13.5], [26.5, 13.5], [12.5, 16.3], [30.5, 16.3], [20.3, 25.5], [23.7, 25.5]];
   const group = new THREE.Group();
@@ -449,7 +422,6 @@ export function createLanterns(physics: Physics, withLights: number) {
   });
   return {
     group,
-    /** 0 = day … 1 = night */
     setNight(n: number, t: number) {
       const flicker = 1 + Math.sin(t * 11) * 0.03 + Math.sin(t * 23) * 0.02;
       glow.emissiveIntensity = 0.2 + n * 3.4 * flicker;

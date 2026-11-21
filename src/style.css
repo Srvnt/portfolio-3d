@@ -26,7 +26,6 @@ html, body {
 
 [hidden] { display: none !important; }
 
-/* ---------- glass window with gold trim ---------- */
 .window {
   background: linear-gradient(160deg, var(--panel-2), var(--panel));
   border: 1.5px solid var(--gold-soft);
@@ -36,7 +35,6 @@ html, body {
   -webkit-backdrop-filter: blur(10px) saturate(1.2);
 }
 
-/* ---------- labels ---------- */
 #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 .label {
   position: absolute;
@@ -78,7 +76,6 @@ html, body {
 .label.near { background: #1c2a66; color: var(--ink); }
 .label.near .key { display: inline-block; animation: pulse 1s ease-in-out infinite; }
 
-/* ---------- hint ---------- */
 .hint {
   position: fixed;
   left: 50%;
@@ -103,7 +100,6 @@ html, body {
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.15);
 }
 
-/* ---------- dialog ---------- */
 #dialog {
   position: fixed;
   left: 50%;
@@ -132,7 +128,6 @@ html, body {
 #dialog .text { margin: 0; }
 #dialog .more { position: absolute; right: 18px; bottom: 10px; font-size: 12px; color: var(--gold); animation: bob 0.7s ease-in-out infinite; }
 
-/* ---------- panel ---------- */
 #panel-wrap {
   position: fixed;
   inset: 0;
@@ -236,7 +231,6 @@ html, body {
 }
 .st-name { margin-top: 7px; font-size: 14px; font-weight: 800; text-align: center; line-height: 1.2; max-width: 96px; }
 .st-node.major > .st-name { font-size: 16px; color: var(--gold); }
-/* connectors: stem down from a parent, a bar across its children, a tick up to each child */
 .st-stem {
   width: 3px;
   height: 22px;
@@ -276,7 +270,6 @@ html, body {
 .timeline li::before { content: ''; position: absolute; left: -29px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px rgba(242, 198, 107, 0.25); }
 .timeline h3 { margin: 0; }
 
-/* ---------- title ---------- */
 .title-screen {
   position: fixed;
   inset: 0;
@@ -304,7 +297,6 @@ html, body {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
-/* ---------- combat HUD ---------- */
 .hud {
   position: fixed;
   left: 18px;
@@ -344,7 +336,6 @@ html, body {
   100% { opacity: 0; transform: translate(var(--x), var(--y)) translate(-50%, -64px) scale(1); }
 }
 
-/* ---------- minimap ---------- */
 .minimap {
   --mm: 188px;
   position: fixed;
@@ -354,7 +345,6 @@ html, body {
   height: var(--mm);
   border-radius: 50%;
   cursor: pointer;
-  /* gold ring: outer rim, engraved groove, inner rim */
   box-shadow:
     0 0 0 3px #f6d68a,
     0 0 0 6px #a8742a,
@@ -404,7 +394,6 @@ html, body {
   border-radius: 999px;
   white-space: nowrap;
 }
-/* full map */
 .minimap.full {
   --mm: min(86vmin, 760px);
   width: min(92vw, 980px);
@@ -428,7 +417,6 @@ html, body {
   .mm-caption { display: none; }
 }
 
-/* ---------- weather menu ---------- */
 .weather { position: fixed; right: 22px; top: 266px; z-index: 4; display: flex; flex-direction: column; align-items: flex-end; }
 .wx-pill {
   display: inline-flex;
@@ -495,7 +483,6 @@ html, body {
   .wx-panel { width: min(290px, calc(100vw - 28px)); }
 }
 
-/* ---------- fishing ---------- */
 .fish-hint {
   position: fixed;
   left: 50%;
@@ -564,7 +551,6 @@ html, body {
 }
 @keyframes pop-in { from { transform: var(--pos) scale(0.2); } }
 
-/* ---------- touch ---------- */
 #stick {
   position: fixed;
   left: 0;

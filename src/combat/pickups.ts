@@ -2,7 +2,6 @@ import * as THREE from 'three';
 
 interface Heart { g: THREE.Group; x: number; z: number; vy: number; y: number; life: number }
 
-/** Hearts dropped by defeated monsters: walk over one to heal. */
 export class Hearts {
   group = new THREE.Group();
   private list: Heart[] = [];
@@ -10,7 +9,6 @@ export class Hearts {
   private mat = new THREE.MeshStandardMaterial({ color: '#ff4a6a', emissive: '#ff2a4a', emissiveIntensity: 0.9, roughness: 0.3 });
 
   constructor() {
-    // heart from two lobes and a point, merged into one shape
     const shape = new THREE.Shape();
     shape.moveTo(0, -0.18);
     shape.bezierCurveTo(-0.05, -0.12, -0.22, -0.02, -0.2, 0.08);
@@ -30,14 +28,12 @@ export class Hearts {
     this.list.push({ g, x, z, vy: 4, y: 0.6, life: 25 });
   }
 
-  /** Returns total healing picked up this frame. */
   update(dt: number, t: number, heroX: number, heroZ: number, amount = 25): { healed: number; at: THREE.Vector3 | null } {
     let healed = 0;
     let at: THREE.Vector3 | null = null;
     for (let i = this.list.length - 1; i >= 0; i--) {
       const h = this.list[i];
       h.life -= dt;
-      // pop up, land, then hover and spin
       h.vy -= 14 * dt;
       h.y = Math.max(0.45 + Math.sin(t * 3 + h.x) * 0.06, h.y + h.vy * dt);
       if (h.y <= 0.52 && h.vy < 0) h.vy = 0;

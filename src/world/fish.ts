@@ -1,17 +1,15 @@
 import * as THREE from 'three';
 import { WorldMap } from './map';
 
-/** Look of each species, in the same order as `content.fish`. Extra content entries reuse these. */
 export const SPECIES = [
-  // agility: how fast it chases bait and how tricky it is to hook (0 slow/easy … 1 fast/hard)
-  { body: '#3f5a22', belly: '#e6e0b0', fin: '#b5652a', len: 1.35, agility: 0.9 }, // pike
-  { body: '#5f6a1e', belly: '#f2e6b8', fin: '#e8622a', len: 0.95, agility: 0.5 }, // perch
-  { body: '#4f5f6a', belly: '#f4f0ea', fin: '#d9708a', len: 1.1, agility: 0.7 }, // trout
-  { body: '#5a6878', belly: '#fbf2ee', fin: '#c4848a', len: 1.25, agility: 0.25 }, // salmon
+  { body: '#3f5a22', belly: '#e6e0b0', fin: '#b5652a', len: 1.35, agility: 0.9 },
+  { body: '#5f6a1e', belly: '#f2e6b8', fin: '#e8622a', len: 0.95, agility: 0.5 },
+  { body: '#4f5f6a', belly: '#f4f0ea', fin: '#d9708a', len: 1.1, agility: 0.7 },
+  { body: '#5a6878', belly: '#fbf2ee', fin: '#c4848a', len: 1.25, agility: 0.25 },
 ];
 
 const UNDERWATER = new THREE.Color('#c4e2ea');
-const SWIM_Y = -0.17; // between the riverbed (-0.32) and the surface (0.04)
+const SWIM_Y = -0.17;
 
 export interface Fish {
   group: THREE.Group;
@@ -21,7 +19,6 @@ export interface Fish {
   lat: number;
   dir: 1 | -1;
   speed: number;
-  /** 0..1, from species ± individual variation */
   agility: number;
   seed: number;
   lure: THREE.Vector3 | null;
@@ -35,7 +32,6 @@ function fishMesh(sp: (typeof SPECIES)[number]): { group: THREE.Group; tail: THR
   const group = new THREE.Group();
   const body = new THREE.SphereGeometry(0.12, 14, 10);
   body.scale(0.55, 0.62, 1.7 * sp.len);
-  // belly-to-back colour gradient
   const pos = body.attributes.position;
   const col = new Float32Array(pos.count * 3);
   const top = new THREE.Color(sp.body), belly = new THREE.Color(sp.belly);
@@ -66,17 +62,14 @@ function fishMesh(sp: (typeof SPECIES)[number]): { group: THREE.Group; tail: THR
     eye.position.set(s * 0.05, 0.025, 0.15 * sp.len);
     group.add(eye);
   }
-  // drawn after the (transparent) river so they read through the water, slightly tinted
   group.traverse((o) => { o.castShadow = true; o.renderOrder = 2; });
-  group.scale.setScalar(1.8); // readable from the camera height
+  group.scale.setScalar(1.8);
   return { group, tail };
 }
 
-/** Fish swimming up and down the river; they can be lured to a bobber, hooked and caught. */
 export class School {
   group = new THREE.Group();
   fish: Fish[] = [];
-  /** Called with a world position when a fish breaks the surface. */
   onSplash: (p: THREE.Vector3, big: boolean) => void = () => {};
 
   constructor(private map: WorldMap, count: number) {
@@ -96,7 +89,6 @@ export class School {
     }
   }
 
-  /** Nearest free fish to a point. */
   closest(p: THREE.Vector3): Fish | null {
     let best: Fish | null = null;
     let d = Infinity;
@@ -108,20 +100,17 @@ export class School {
     return best;
   }
 
-  /** Free fish within `r` of a point, nearest first. */
   near(p: THREE.Vector3, r: number): Fish[] {
     return this.fish
       .filter((f) => !f.hooked && f.respawn <= 0 && f.group.position.distanceTo(p) < r)
       .sort((a, b) => a.group.position.distanceTo(p) - b.group.position.distanceTo(p));
   }
 
-  /** The fish disappears for a while after being caught, then returns elsewhere. */
   caught(f: Fish, heroZ: number) {
     f.hooked = false;
     f.lure = null;
     f.group.visible = false;
     f.respawn = 20;
-    // come back far from where it was caught
     f.z = heroZ > this.map.H / 2 ? 2 + Math.random() * 8 : this.map.H - 10 + Math.random() * 8;
   }
 
@@ -129,7 +118,7 @@ export class School {
     f.lure = null;
     f.hooked = false;
     f.dir = Math.random() < 0.5 ? 1 : -1;
-    f.speed = 1.4; // dart away
+    f.speed = 1.4;
   }
 
   update(dt: number, t: number) {
@@ -139,11 +128,10 @@ export class School {
         if (f.respawn <= 0) f.group.visible = true;
         continue;
       }
-      if (f.hooked) continue; // fishing controls it
+      if (f.hooked) continue;
       const g = f.group;
       const prev = g.position.clone();
       if (f.lure) {
-        // chase the bait at this fish's own pace, with a little side-to-side weave
         const to = f.lure.clone().setY(SWIM_Y);
         const d = to.distanceTo(g.position);
         const pace = 0.45 + f.agility * 1.6;
@@ -162,7 +150,6 @@ export class School {
         f.lat += (Math.sin(t * 0.4 + f.seed) * 0.6 - f.lat) * dt;
         g.position.set(this.map.riverCenter(f.z) + f.lat, SWIM_Y, f.z);
       }
-      // heading from movement
       const mv = g.position.clone().sub(prev);
       if (mv.lengthSq() > 1e-7) {
         const want = Math.atan2(mv.x, mv.z);
@@ -172,7 +159,6 @@ export class School {
       }
       f.tail.rotation.y = Math.sin(t * (f.lure ? 6 : 9) + f.seed) * 0.5;
 
-      // the occasional leap
       if (!f.lure) {
         f.nextJump -= dt;
         if (f.nextJump <= 0 && f.jump < 0) { f.jump = 0; this.onSplash(g.position.clone().setY(0.05), false); }

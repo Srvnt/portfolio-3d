@@ -5,13 +5,6 @@ import { hash2, rng } from '../core/random';
 import { heightAt } from './terrain';
 import { addWind, canvasTexture, makeCanvas, standard, tint, uniforms, wobble } from './shared';
 
-/*
- * Trees are built entirely from leaf clusters (alpha cards) — no solid canopy.
- * Cards fill each foliage volume, denser and brighter toward the outside,
- * darker inside, so the tree reads as a full, airy crown with branches
- * peeking through.
- */
-
 type Geo = THREE.BufferGeometry;
 const SUN = new THREE.Vector3(-0.45, 0.8, 0.4).normalize();
 const tmp = new THREE.Vector3();
@@ -19,8 +12,6 @@ const smooth = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
-
-// ------------------------------------------------------------------ species
 
 interface Blob { r: number; x: number; y: number; z: number }
 interface Species {
@@ -44,7 +35,6 @@ const BROADLEAF: Blob[] = [
 const SPECIES: Species[] = [
   { trunkH: 1.5, trunk: '#6e4a2c', blobs: BROADLEAF, dark: '#1b4a22', mid: '#3d8c38', light: '#a2dc6a', cards: 230, cardSize: 0.88 },
   { trunkH: 1.5, trunk: '#7a5232', blobs: BROADLEAF.map((b) => ({ ...b, r: b.r * 1.05 })), dark: '#2e5e1c', mid: '#5fa63a', light: '#c8ea7e', cards: 240, cardSize: 0.88 },
-  // pine: tiers instead of blobs (r = radius, y = tier centre, x = tier height)
   { trunkH: 2.9, trunk: '#5e3d24', blobs: [
     { r: 1.3, x: 1.25, y: 1.15, z: 0 }, { r: 1.05, x: 1.1, y: 1.75, z: 0 },
     { r: 0.8, x: 1.0, y: 2.3, z: 0 }, { r: 0.5, x: 0.85, y: 2.8, z: 0 },
@@ -52,13 +42,11 @@ const SPECIES: Species[] = [
   { trunkH: 1.45, trunk: '#6a4630', blobs: BROADLEAF.map((b) => ({ ...b, r: b.r * 0.95 })), dark: '#a8466f', mid: '#ee8ab4', light: '#ffe2ef', cards: 250, cardSize: 0.78 },
 ];
 
-/** Colour a leaf: dark inside/underneath → mid → sunlit top. */
 function shade(sp: Species, n: THREE.Vector3, h: number, depth: number, jitter: number, out: THREE.Color) {
   const dark = new THREE.Color(sp.dark), mid = new THREE.Color(sp.mid), light = new THREE.Color(sp.light);
   const ndl = Math.max(0, n.dot(SUN));
   out.copy(dark).lerp(mid, Math.min(1, smooth(0, 0.65, h) * 0.6 + ndl * 0.35 + depth * 0.25));
   out.lerp(light, Math.pow(ndl, 2) * (0.3 + h * 0.45) * depth);
-  // self-shadowing: leaves deep inside the crown are darker
   out.multiplyScalar((0.72 + depth * 0.3) * (0.9 + jitter * 0.2));
   return out;
 }
@@ -70,7 +58,6 @@ function crownCenter(blobs: Blob[]) {
   return c.divideScalar(w);
 }
 
-/** One leaf card at `pos`, facing `dir`, coloured and lit as part of the crown. */
 function card(pos: THREE.Vector3, dir: THREE.Vector3, size: number, normal: THREE.Vector3, color: THREE.Color, roll: number): Geo {
   const g = new THREE.PlaneGeometry(size, size);
   const m = new THREE.Matrix4();
@@ -86,7 +73,6 @@ function card(pos: THREE.Vector3, dir: THREE.Vector3, size: number, normal: THRE
   return g;
 }
 
-/** Broadleaf/bush crown: cards filling each blob, biased toward the surface. */
 function crownCards(sp: Species, count: number, seed: number): Geo {
   const r = rng(seed);
   const center = crownCenter(sp.blobs);
@@ -104,19 +90,16 @@ function crownCards(sp: Species, count: number, seed: number): Geo {
     const th = r() * Math.PI * 2;
     const ring = Math.sqrt(1 - y * y);
     const dir = new THREE.Vector3(ring * Math.cos(th), y, ring * Math.sin(th));
-    // depth 1 = outer surface, lower = inside the crown
     const depth = 1 - Math.pow(r(), 2.2) * 0.6;
     const pos = new THREE.Vector3(b.x, b.y, b.z).addScaledVector(dir, b.r * depth);
     const n = dir.clone().multiplyScalar(0.45).add(pos.clone().sub(center).normalize().multiplyScalar(0.55)).normalize();
     shade(sp, n, (pos.y - bottom) / (top - bottom), depth, r(), c);
-    // tilt cards a little off the normal so the crown looks ruffled
     const face = dir.clone().add(new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).multiplyScalar(0.9)).normalize();
     cards.push(card(pos, face, sp.cardSize * (0.7 + r() * 0.6) * (0.75 + depth * 0.35), n, c, r() * Math.PI * 2));
   }
   return mergeGeometries(cards)!;
 }
 
-/** Pine: cards on drooping cone tiers, pointing outward and down like boughs. */
 function pineCards(sp: Species, count: number, seed: number): Geo {
   const r = rng(seed);
   const c = new THREE.Color();
@@ -129,7 +112,7 @@ function pineCards(sp: Species, count: number, seed: number): Geo {
     let t = tiers[0];
     for (let i = 0; i < tiers.length; i++) { pick -= weights[i]; if (pick <= 0) { t = tiers[i]; break; } }
     const h = t.x;
-    const f = Math.pow(r(), 0.7); // more cards near the wide bottom of each tier
+    const f = Math.pow(r(), 0.7);
     const a = r() * Math.PI * 2;
     const depth = 1 - Math.pow(r(), 2) * 0.5;
     const rad = t.r * (1 - (1 - f) * 0.85) * depth;
@@ -140,7 +123,6 @@ function pineCards(sp: Species, count: number, seed: number): Geo {
     shade(sp, out, (y - 0.4) / 2.8, depth, r(), c);
     cards.push(card(pos, face, sp.cardSize * (0.7 + r() * 0.5) * (0.8 + f * 0.5), out, c, r() * 0.6 - 0.3 + Math.PI));
   }
-  // a little tuft on the very top
   for (let k = 0; k < 6; k++) {
     const a = (k / 6) * Math.PI * 2;
     const out = new THREE.Vector3(Math.cos(a) * 0.3, 1, Math.sin(a) * 0.3).normalize();
@@ -150,7 +132,6 @@ function pineCards(sp: Species, count: number, seed: number): Geo {
   return mergeGeometries(cards)!;
 }
 
-/** A tapered cylinder from a to b. */
 function limb(a: THREE.Vector3, b: THREE.Vector3, r0: number, r1: number, seg = 6): Geo {
   const len = a.distanceTo(b);
   const g = new THREE.CylinderGeometry(r1, r0, len, seg);
@@ -162,7 +143,6 @@ function limb(a: THREE.Vector3, b: THREE.Vector3, r0: number, r1: number, seg = 
   return g;
 }
 
-/** Bent trunk with root flare and a branch reaching into each foliage clump. */
 function trunkGeometry(sp: Species, pine: boolean): Geo {
   const h = sp.trunkH;
   const main = new THREE.CylinderGeometry(pine ? 0.05 : 0.08, pine ? 0.16 : 0.18, h, 9, 5);
@@ -182,7 +162,6 @@ function trunkGeometry(sp: Species, pine: boolean): Geo {
       const from = new THREE.Vector3(Math.sin((Math.min(b.y - 0.3, h * 0.9) / h) * Math.PI) * 0.07, Math.min(b.y - 0.35, h * 0.88), 0);
       const to = new THREE.Vector3(b.x * 0.85, b.y + 0.05, b.z * 0.85);
       parts.push(limb(from, to, 0.06, 0.025));
-      // a small twig off each branch
       const mid = from.clone().lerp(to, 0.55);
       parts.push(limb(mid, mid.clone().add(new THREE.Vector3(-b.z * 0.4, 0.35, b.x * 0.4)), 0.025, 0.01, 4));
     }
@@ -199,9 +178,6 @@ function trunkGeometry(sp: Species, pine: boolean): Geo {
   return g;
 }
 
-// ------------------------------------------------------------------ textures
-
-/** A clump of rounded leaves, white so vertex colours tint it. Shared by trees, bushes and ivy. */
 let leafTexCache: THREE.CanvasTexture | null = null;
 export function leafTexture(): THREE.CanvasTexture {
   if (leafTexCache) return leafTexCache;
@@ -234,13 +210,11 @@ export function leafTexture(): THREE.CanvasTexture {
   return leafTexCache;
 }
 
-/** Fan of pine needles. */
 function needleTexture(): THREE.CanvasTexture {
   const { canvas, ctx } = makeCanvas(256, 256);
   const r = rng(11);
   ctx.lineCap = 'round';
   for (let s = 0; s < 5; s++) {
-    // a sprig: centre stem with needles both sides
     const sx = 50 + s * 38 + (r() - 0.5) * 20;
     const bend = (r() - 0.5) * 30;
     for (let k = 0; k < 26; k++) {
@@ -265,9 +239,6 @@ function needleTexture(): THREE.CanvasTexture {
   return canvasTexture(canvas);
 }
 
-// ------------------------------------------------------------------ materials
-
-/** Sway with the wind; optional per-vertex flutter for leaves; optional two-sided lighting. */
 function foliageMaterial(opts: { map?: THREE.Texture; amp: number; minY: number; flutter: number; twoSided: boolean }) {
   const m = new THREE.MeshStandardMaterial({
     vertexColors: true, roughness: 0.8, map: opts.map ?? null,
@@ -299,8 +270,6 @@ function foliageMaterial(opts: { map?: THREE.Texture; amp: number; minY: number;
   return m;
 }
 
-// ------------------------------------------------------------------ placement
-
 function placeAll(geos: [Geo, THREE.Material][], list: Prop[], map: WorldMap, scale: [number, number]) {
   const out: THREE.InstancedMesh[] = [];
   const m = new THREE.Matrix4();
@@ -328,7 +297,6 @@ function rockGeometry(): Geo {
   g.translate(0, 0.18, 0);
   const t = tint(g, '#9aa0a6', 0.1);
   t.computeVertexNormals();
-  // moss on the upward-facing facets
   const n = t.attributes.normal, c = t.attributes.color;
   const moss = new THREE.Color('#5d8a35');
   for (let i = 0; i < n.count; i += 3) {
@@ -339,7 +307,6 @@ function rockGeometry(): Geo {
   return t;
 }
 
-/** Little flowers: instanced stems + coloured heads. */
 function createFlowers(map: WorldMap): THREE.Group {
   const pts: { x: number; z: number; c: number }[] = [];
   for (let z = 0; z < map.H; z++)
@@ -362,7 +329,7 @@ function createFlowers(map: WorldMap): THREE.Group {
   const heads = new THREE.InstancedMesh(headGeo, headMat, pts.length);
   const m = new THREE.Matrix4();
   pts.forEach((p, i) => {
-    const s = 1.5 + hash2(i, 1, 1) * 0.7; // tall enough to peek over the grass
+    const s = 1.5 + hash2(i, 1, 1) * 0.7;
     m.makeScale(s, s, s).setPosition(p.x, 0, p.z);
     stems.setMatrixAt(i, m);
     heads.setMatrixAt(i, m);
@@ -373,14 +340,11 @@ function createFlowers(map: WorldMap): THREE.Group {
   return g;
 }
 
-// ------------------------------------------------------------------ sword interaction
-
 const REGROW_AFTER = 25;
 const GROW_TIME = 0.9;
 const bushes = { mesh: null as THREE.InstancedMesh | null, list: [] as Prop[], base: [] as THREE.Matrix4[], cutAt: [] as number[], growAt: [] as number[] };
 let trees: Prop[] = [];
 
-/** Cut down every standing bush within r of the hit. Returns the props that were cut. */
 export function cutBushes(center: THREE.Vector3, r: number, now: number): Prop[] {
   const out: Prop[] = [];
   const m = bushes.mesh;
@@ -396,7 +360,6 @@ export function cutBushes(center: THREE.Vector3, r: number, now: number): Prop[]
   return out;
 }
 
-/** Grow cut bushes back. Returns bushes that just started regrowing (they become solid again). */
 export function regrowBushes(now: number, canRegrow: (p: Prop) => boolean): Prop[] {
   const m = bushes.mesh;
   const started: Prop[] = [];
@@ -407,12 +370,12 @@ export function regrowBushes(now: number, canRegrow: (p: Prop) => boolean): Prop
     if (bushes.cutAt[i] < 0) return;
     if (bushes.growAt[i] < 0) {
       if (now - bushes.cutAt[i] < REGROW_AFTER) return;
-      if (!canRegrow(p)) return; // someone is standing there; try again next frame
+      if (!canRegrow(p)) return;
       bushes.growAt[i] = now;
       started.push(p);
     }
     const k = Math.min(1, (now - bushes.growAt[i]) / GROW_TIME);
-    const e = 1 - Math.pow(1 - k, 3) + Math.sin(k * Math.PI) * 0.12; // ease out with a little bounce
+    const e = 1 - Math.pow(1 - k, 3) + Math.sin(k * Math.PI) * 0.12;
     bushes.base[i].decompose(pos, q, s);
     m.setMatrixAt(i, new THREE.Matrix4().compose(pos, q, s.multiplyScalar(Math.max(0.001, e))));
     dirty = true;
@@ -425,7 +388,6 @@ export function regrowBushes(now: number, canRegrow: (p: Prop) => boolean): Prop
   return started;
 }
 
-/** Village trees within r of a point (for leaf showers). */
 export function treesNear(center: THREE.Vector3, r: number): Prop[] {
   return trees.filter((p) => Math.hypot(p.x - center.x, p.z - center.z) < r);
 }
@@ -438,13 +400,11 @@ export function createNature(map: WorldMap, lowEnd = false): THREE.Group {
   const leafMat = foliageMaterial({ map: leafTex, amp: 0.05, minY: 1.0, flutter: 0.035, twoSided: true });
   const needleMat = foliageMaterial({ map: needleTex, amp: 0.035, minY: 0.8, flutter: 0.015, twoSided: true });
 
-  // blossom trees are rarer: about half of them become plain broadleaves
   const species = (p: Prop) => (p.v === 3 && hash2(Math.floor(p.x * 3), Math.floor(p.z * 3), 12) < 0.55 ? 0 : p.v);
   for (let v = 0; v < 4; v++) {
     const sp = SPECIES[v];
     const pine = v === 2;
     for (const near of [true, false]) {
-      // village trees get full leaf density; the hillside forest is lighter
       const list = map.props.filter((p) => p.kind === 'tree' && p.inside === near && species(p) === v);
       if (!list.length) continue;
       const density = near ? (lowEnd ? 0.55 : 1) : (lowEnd ? 0.3 : 0.45);
@@ -457,7 +417,6 @@ export function createNature(map: WorldMap, lowEnd = false): THREE.Group {
     }
   }
 
-  // bushes: a low leafy crown, no trunk
   const bush: Species = {
     trunkH: 0, trunk: '#000', dark: '#2a6a2c', mid: '#5cb24a', light: '#c4ec84', cards: 120, cardSize: 0.6,
     blobs: [{ r: 0.58, x: 0, y: 0.58, z: 0 }, { r: 0.45, x: 0.46, y: 0.42, z: 0.12 }, { r: 0.42, x: -0.44, y: 0.4, z: 0.06 }],

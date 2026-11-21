@@ -5,15 +5,9 @@ import { uniforms } from './shared';
 
 const BLADE_H = 0.32;
 
-/**
- * Thousands of instanced grass blades that sway in the wind and bend away
- * from the hero as they walk through.
- */
 export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh {
-  // one tapered blade: 5 verts
   const w = 0.06;
   const geo = new THREE.BufferGeometry();
-  // slight forward curve so blades read as soft tufts, not flat cards
   const pos = [-w, 0, 0, w, 0, 0, -w * 0.65, BLADE_H * 0.55, 0.02, w * 0.65, BLADE_H * 0.55, 0.02, 0, BLADE_H, 0.07];
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setIndex([0, 1, 2, 1, 3, 2, 2, 3, 4]);
@@ -25,7 +19,6 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
     ...base.toArray(), ...base.toArray(), ...mid.toArray(), ...mid.toArray(), ...tip.toArray(),
   ], 3));
 
-  // collect blade positions
   const spots: number[] = [];
   const nearNonGrass = (x: number, z: number, px: number, pz: number) => {
     for (let dz = -1; dz <= 1; dz++)
@@ -35,14 +28,13 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
       }
     return false;
   };
-  // trees keep a small clearing of bare earth (where mushrooms grow)
   const trunks = new Map<number, { x: number; z: number }>();
   for (const p of map.props) if (p.inside && p.kind === 'tree') trunks.set(map.i(Math.floor(p.x), Math.floor(p.z)), p);
   for (let z = 0; z < map.H; z++)
     for (let x = 0; x < map.W; x++) {
       const i = map.i(x, z);
       if (map.tiles[i] !== Tile.Grass || map.occ[i] === Occ.Building || map.occ[i] === Occ.Fixture) continue;
-      if (x >= 18 && x <= 25 && z >= 14 && z <= 21) continue; // plaza
+      if (x >= 18 && x <= 25 && z >= 14 && z <= 21) continue;
       const trunk = trunks.get(i);
       for (let k = 0; k < density; k++) {
         const px = x + hash2(x * 31 + k, z, 1);
@@ -68,7 +60,6 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
         mvPosition = instanceMatrix * mvPosition;
         float hk = position.y / ${BLADE_H.toFixed(2)}; hk *= hk;
         vec2 ip = instanceMatrix[3].xz;
-        // gusts roll across the meadow; strong wind also leans everything one way
         float gustW = 0.5 + 0.5 * sin(uTime * (0.9 + uWind) - ip.x * 0.25 - ip.y * 0.1);
         vec2 wind = vec2(
           sin(uTime * (1.8 + uWind * 3.0) + ip.x * 0.35 + ip.y * 0.22) + sin(uTime * 3.1 + ip.x * 1.7) * 0.3,
@@ -77,7 +68,6 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
         vec2 away = ip - uHero;
         float dist = length(away);
         float push = smoothstep(1.0, 0.15, dist);
-        // sword swipe: a wider ring of grass flattens outward, springing back as uHit.z decays
         vec2 fromHit = ip - uHit.xy;
         float slash = smoothstep(1.6, 0.2, length(fromHit)) * uHit.z;
         mvPosition.xz += (wind + normalize(away + 1e-4) * push * 0.38 + normalize(fromHit + 1e-4) * slash * 0.45) * hk;
@@ -85,7 +75,6 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
         mvPosition = modelViewMatrix * mvPosition;
         gl_Position = projectionMatrix * mvPosition;`,
       );
-    // keep both sides lit like the ground
     shader.fragmentShader = shader.fragmentShader.replace(
       'float faceDirection = gl_FrontFacing ? 1.0 : - 1.0;',
       'float faceDirection = 1.0;',
@@ -104,7 +93,6 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
     const h = hash2(Math.floor(x * 97), Math.floor(z * 97), 5);
     e.set((h - 0.5) * 0.3, h * Math.PI * 2, (hash2(i, 3, 9) - 0.5) * 0.3);
     q.setFromEuler(e);
-    // tall lush clumps and shorter meadow, driven by soft noise
     const clump = valueNoise(x * 0.55, z * 0.55, 13);
     const sc = (0.6 + hash2(i, 7, 4) * 0.55) * (0.7 + clump * 1.0);
     const wide = 0.85 + hash2(i, 8, 4) * 0.5;
@@ -112,7 +100,6 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
     p.set(x, 0, z);
     m.compose(p, q, s);
     mesh.setMatrixAt(i, m);
-    // patches: deep green in clumps, sunnier yellow-green in open meadow
     const v = hash2(i, 1, 1);
     const sun = valueNoise(x * 0.3 + 40, z * 0.3, 14);
     const deep = clump * 0.25;

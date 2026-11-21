@@ -1,7 +1,3 @@
-/**
- * Small storytelling details: ivy on walls, mushrooms under trees, pebbles
- * along paths. Everything is generated, merged and instanced to stay cheap.
- */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Building, Tile, WALL_H, WorldMap } from './map';
@@ -11,10 +7,7 @@ import { uniforms } from './shared';
 
 const PLINTH = 0.3;
 
-// ------------------------------------------------------------------ ivy
-
 let ivyMat: THREE.MeshStandardMaterial | null = null;
-/** Two-sided leaf material with a gentle flutter (non-instanced meshes). */
 function ivyMaterial() {
   if (ivyMat) return ivyMat;
   const m = new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, vertexColors: true, roughness: 0.8 });
@@ -45,10 +38,6 @@ function leafCard(pos: THREE.Vector3, face: THREE.Vector3, size: number, color: 
   return g;
 }
 
-/**
- * Ivy climbing a building's walls, in the building's local frame.
- * Grows up from the plinth at the corners and side walls, avoiding the door.
- */
 export function createIvy(b: Building, seed: number): THREE.Group {
   const r = rng(seed);
   const { w, d } = b;
@@ -62,7 +51,6 @@ export function createIvy(b: Building, seed: number): THREE.Group {
     { base: new THREE.Vector3(-w / 2 - 0.06, 0, -d / 2 + 0.4), along: new THREE.Vector3(0, 0, 1), normal: new THREE.Vector3(-1, 0, 0) },
     { base: new THREE.Vector3(-w / 2 - 0.06, 0, d / 2 - 0.35), along: new THREE.Vector3(0, 0, -1), normal: new THREE.Vector3(-1, 0, 0) },
   ];
-  // each building gets 2–3 of the possible spots
   const chosen = spots.filter(() => r() < 0.55).slice(0, 3);
   if (!chosen.length) chosen.push(spots[0]);
 
@@ -91,7 +79,7 @@ export function createIvy(b: Building, seed: number): THREE.Group {
     for (let s = 0; s < len; s += 0.07) {
       const t = s / len;
       const p = curve.getPointAt(t);
-      const fullness = 1 - t * 0.55; // bushier near the bottom
+      const fullness = 1 - t * 0.55;
       for (let k = 0; k < 2; k++) {
         if (r() > fullness + 0.2) continue;
         const side = (r() - 0.5) * 0.36 * fullness;
@@ -109,7 +97,6 @@ export function createIvy(b: Building, seed: number): THREE.Group {
     const height = PLINTH + 0.9 + r() * (top - PLINTH - 0.9);
     const main = grow(sp.base.clone().setY(0.05), sp, height, 0);
     if (!main) continue;
-    // a couple of side branches leaning away from the main stem
     for (let k = 0; k < 2; k++) {
       const from = main.getPointAt(0.25 + r() * 0.4);
       grow(from, sp, Math.min(top, from.y + 0.6 + r() * 0.8), k === 0 ? 1 : -1);
@@ -138,16 +125,12 @@ export function createIvy(b: Building, seed: number): THREE.Group {
   return g;
 }
 
-// ------------------------------------------------------------------ ground
-
-/** Mushroom rings at tree roots and pebbles along path edges. */
 export function createGroundDetails(map: WorldMap): THREE.Group {
   const g = new THREE.Group();
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
 
-  // mushrooms
   const shrooms: { x: number; z: number; s: number; c: number }[] = [];
   for (const p of map.props) {
     if (!p.inside || p.kind !== 'tree') continue;
@@ -179,7 +162,6 @@ export function createGroundDetails(map: WorldMap): THREE.Group {
   stems.castShadow = caps.castShadow = true;
   g.add(stems, caps);
 
-  // pebbles along path edges
   const pebbles: THREE.Matrix4[] = [];
   for (let z = 0; z < map.H; z++)
     for (let x = 0; x < map.W; x++) {

@@ -1,13 +1,8 @@
-/**
- * Round minimap (top-right) and a full map (M / click). The world is painted once into an
- * illustrated base image — trees, paths, river, buildings, danger zones — and live markers
- * (hero, monsters, chests) are drawn on top each frame.
- */
 import { BUILDINGS, FOUNTAIN, Prop, SAFE, SPAWN_ZONES, Tile, WorldMap } from '../world/map';
 import { hash2, rng } from '../core/random';
 
-const PPT = 10; // base-image pixels per tile
-const VIEW = 15; // minimap radius in tiles
+const PPT = 10;
+const VIEW = 15;
 
 export interface MapMarkers {
   hero: { x: number; z: number; heading: number };
@@ -23,7 +18,6 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
   const r = rng(17);
   const T = (n: number) => n * PPT;
 
-  // meadow with soft colour variation
   g.fillStyle = '#74b24c';
   g.fillRect(0, 0, c.width, c.height);
   for (let i = 0; i < 260; i++) {
@@ -36,7 +30,6 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
     g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
   }
 
-  // danger zones: warm tint + hatching
   for (const zn of SPAWN_ZONES) {
     g.save();
     g.beginPath();
@@ -61,7 +54,6 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
   };
   const wet = (t: Tile) => t === Tile.Water || t === Tile.Bridge;
 
-  // river: sandy bank, deep water, bright current
   blob(wet, '#d9c48a', 1.0);
   blob(wet, '#3f9fd0', 0.78);
   g.strokeStyle = 'rgba(190,235,255,0.7)';
@@ -72,7 +64,6 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
     if (z === 0) g.moveTo(T(x), T(z)); else g.lineTo(T(x), T(z));
   }
   g.stroke();
-  // ripple ticks
   g.strokeStyle = 'rgba(220,245,255,0.6)';
   g.lineWidth = 1.2;
   for (let i = 0; i < 40; i++) {
@@ -80,10 +71,8 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
     g.beginPath(); g.moveTo(T(x) - 3, T(z)); g.quadraticCurveTo(T(x), T(z) - 2, T(x) + 3, T(z)); g.stroke();
   }
 
-  // paths
   blob((t) => t === Tile.Path, '#c49a5e', 0.62);
   blob((t) => t === Tile.Path, '#ead39a', 0.5);
-  // bridges: planks
   tiles((t) => t === Tile.Bridge, (x, z) => {
     g.fillStyle = '#9a6a3a';
     g.fillRect(T(x) - 1, T(z), T(1) + 2, T(1));
@@ -91,7 +80,6 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
     for (let k = 0; k < PPT; k += 3) g.fillRect(T(x) + k, T(z), 1, T(1));
   });
 
-  // plaza and fountain
   g.fillStyle = '#d8cdb4';
   g.beginPath();
   g.roundRect(T(18.2), T(14.2), T(7.6), T(7.6), T(1.4));
@@ -103,7 +91,6 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
   g.fillStyle = '#5cc4e8';
   g.beginPath(); g.arc(T(FOUNTAIN.x), T(FOUNTAIN.z), T(1.0), 0, Math.PI * 2); g.fill();
 
-  // flowers
   for (let z = 0; z < map.H; z++)
     for (let x = 0; x < map.W; x++) {
       if (!map.flowers[map.i(x, z)]) continue;
@@ -113,7 +100,6 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
       }
     }
 
-  // rocks, bushes, then trees as tiny illustrated canopies (drawn back-to-front)
   const props = [...map.props].filter((p) => p.inside).sort((a, b) => a.z - b.z);
   const tree = (p: Prop) => {
     const x = T(p.x), y = T(p.z), rad = T(0.55 + hash2(Math.floor(p.x * 9), Math.floor(p.z * 9), 1) * 0.15);
@@ -141,7 +127,6 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
     } else tree(p);
   }
 
-  // buildings: drop shadow, walls, pitched roof with ridge
   for (const b of BUILDINGS) {
     const x = T(b.x0), y = T(b.z0), w = T(b.w), h = T(b.d);
     g.fillStyle = 'rgba(20,20,30,0.35)';
@@ -154,12 +139,10 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
     g.fillRect(x - 2, y + h * 0.55, w + 4, h * 0.3);
     g.fillStyle = shade(b.roof, 0.55);
     g.fillRect(x - 2, y + h * 0.55 - 1, w + 4, 2);
-    // door
     g.fillStyle = '#6b4428';
     g.fillRect(x + w / 2 - 3, y + h - 4, 6, 4);
   }
 
-  // village boundary: dashed gold line
   g.setLineDash([8, 6]);
   g.strokeStyle = 'rgba(255,214,110,0.95)';
   g.lineWidth = 2.5;
@@ -170,7 +153,6 @@ function paintBase(map: WorldMap): HTMLCanvasElement {
   g.stroke();
   g.setLineDash([]);
 
-  // forest edge: darken the map border like hills
   const edge = g.createLinearGradient(0, 0, 0, c.height);
   edge.addColorStop(0, 'rgba(30,60,30,0.35)');
   edge.addColorStop(0.06, 'rgba(30,60,30,0)');
@@ -217,7 +199,7 @@ export class Minimap {
 
   update(m: MapMarkers) {
     if (this.el.hidden) return;
-    if (this.frame++ % 2) return; // 30 fps is plenty
+    if (this.frame++ % 2) return;
     const dpr = Math.min(2, window.devicePixelRatio);
     const size = Math.round(this.el.clientWidth * dpr);
     const sizeH = Math.round(this.el.clientHeight * dpr);
@@ -239,13 +221,11 @@ export class Minimap {
 
     g.save();
     if (!this.full) { g.beginPath(); g.arc(size / 2, sizeH / 2, size / 2, 0, Math.PI * 2); g.clip(); }
-    // outside the map: deep forest green
     g.fillStyle = '#2c4a2a';
     g.fillRect(0, 0, size, sizeH);
     g.imageSmoothingQuality = 'high';
     g.drawImage(this.base, W(0), Z(0), this.map.W * scale, this.map.H * scale);
 
-    // labels on the full map
     if (this.full) {
       g.textAlign = 'center';
       g.textBaseline = 'middle';
@@ -263,12 +243,9 @@ export class Minimap {
       label('The Wilds', 17, 45, 18, '#ffb4a0');
     }
 
-    // danger markers (skulls) in each wild zone
     for (const zn of SPAWN_ZONES) this.skull(W((zn.x0 + zn.x1) / 2), Z((zn.z0 + zn.z1) / 2), scale * (this.full ? 0.9 : 0.7));
 
-    // chests
     for (const c of m.chests) if (!c.opened) this.chest(W(c.x), Z(c.z), Math.max(5 * dpr, scale * 0.7));
-    // monsters
     for (const e of m.enemies) {
       if (!e.alive) continue;
       const rad = (e.kind === 'brute' ? 0.55 : 0.38) * scale + dpr;
@@ -277,12 +254,10 @@ export class Minimap {
       g.fillStyle = e.kind === 'brute' ? '#ff6a3a' : '#ff3a4a';
       g.beginPath(); g.arc(W(e.x), Z(e.z), rad, 0, Math.PI * 2); g.fill();
     }
-    // hero arrow
     this.arrow(W(m.hero.x), Z(m.hero.z), m.hero.heading, Math.max(7 * dpr, scale * 0.9));
     g.restore();
 
     if (!this.full) {
-      // inner vignette for depth
       const vg = g.createRadialGradient(size / 2, sizeH / 2, size * 0.32, size / 2, sizeH / 2, size / 2);
       vg.addColorStop(0, 'rgba(10,16,40,0)');
       vg.addColorStop(1, 'rgba(10,16,40,0.45)');
@@ -295,7 +270,6 @@ export class Minimap {
     const g = this.g;
     g.save();
     g.translate(x, y);
-    // heading 0 faces +z (down on the map)
     g.rotate(-heading);
     g.shadowColor = 'rgba(0,0,0,0.5)';
     g.shadowBlur = 4;

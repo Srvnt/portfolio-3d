@@ -11,18 +11,11 @@ export type FishingResult =
   | { kind: 'slip' }
   | null;
 
-/** Timing meter shown during the bite: needle sweeps 0..1, press while it's inside the zone. */
 export interface Meter { needle: number; zone: number; width: number }
 
 const WATER_Y = 0.06;
 const LURE_RADIUS = 7;
 
-/**
- * The fishing minigame:
- * cast → fish swarm to the bait → fake-out nibbles (don't pull!) →
- * BITE: a timing meter appears; press E while the needle is in the green zone → reel in.
- * Faster fish move the needle quicker and have a smaller zone.
- */
 export class Fishing {
   active = false;
   private phase: Phase = 'cast';
@@ -39,7 +32,6 @@ export class Fishing {
   private tip = new THREE.Vector3();
   private reelFrom = new THREE.Vector3();
   private needleSpeed = 1;
-  /** World point for the "!" bubble while hooking; null otherwise. */
   alertAt: THREE.Vector3 | null = null;
   hint: string | null = null;
   meter: Meter | null = null;
@@ -87,7 +79,6 @@ export class Fishing {
     this.meter = null;
   }
 
-  /** Advance one frame. `pressed` = the action key was pressed this frame. */
   update(dt: number, t: number, pressed: boolean): FishingResult {
     if (!this.active) return null;
     this.t += dt;
@@ -121,9 +112,7 @@ export class Fishing {
         b.y = WATER_Y + Math.sin(t * 3) * 0.012;
         if (pressed) return this.miss('early');
         if (Math.random() < dt * 0.4) this.ripples.emit(b, 0.3, 0.9);
-        // re-attract now and then: new fish may have swum into range
         if (this.t > 6 && Math.random() < dt) this.attract(this.t > 10 ? LURE_RADIUS * 2.5 : LURE_RADIUS);
-        // the first fish to reach the bait takes it; the others circle
         if (this.t > this.wait) {
           const first = this.lured.find((f) => this.flatDist(f, b) < 0.32);
           if (first) {
@@ -139,7 +128,6 @@ export class Fishing {
         break;
       }
       case 'nibble': {
-        // fake-outs: short twitches with pauses; pulling now scares the fish
         if (pressed) return this.miss('early');
         this.nibbleT -= dt;
         const twitch = this.nibbleT < 0.25 && this.nibbleT > 0 ? Math.max(0, Math.sin(this.nibbleT * 40)) * 0.035 : 0;
@@ -168,7 +156,6 @@ export class Fishing {
         break;
       }
       case 'reel': {
-        // the fish leaps out of the water and arcs to the hero
         const k = Math.min(1, this.t / 0.9);
         const f = this.biter!;
         const to = new THREE.Vector3(this.hero.x, 1.1, this.hero.z);
@@ -197,7 +184,6 @@ export class Fishing {
     return Math.hypot(f.group.position.x - p.x, f.group.position.z - p.z);
   }
 
-  /** Every free fish in range starts swimming for the bait. */
   private attract(radius = LURE_RADIUS) {
     for (const f of this.school.near(this.target, radius)) {
       if (this.lured.includes(f)) continue;
@@ -206,7 +192,6 @@ export class Fishing {
     }
   }
 
-  /** Losers hover in a loose ring around the bobber. */
   private circleOthers() {
     this.lured.forEach((f, i) => {
       if (f === this.biter) return;
@@ -219,7 +204,6 @@ export class Fishing {
     const ag = this.biter?.agility ?? 0.5;
     this.phase = 'hook';
     this.t = 0;
-    // faster fish: quicker needle, narrower green zone
     this.needleSpeed = 0.9 + ag * 1.3;
     const width = 0.24 - ag * 0.13;
     this.meter = { needle: 0, zone: 0.2 + Math.random() * 0.6, width };
@@ -249,7 +233,6 @@ export class Fishing {
     return { kind };
   }
 
-  /** Sagging fishing line from rod tip to bobber. */
   private drawLine() {
     const a = this.tip, b = this.bobber.position;
     const sag = this.phase === 'cast' ? 0.05 : this.phase === 'hook' ? 0.05 : 0.35;

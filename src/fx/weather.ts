@@ -1,8 +1,3 @@
-/**
- * Weather visuals. A weather state is five sliders (0..1) that can be combined freely:
- * sun (clear vs overcast), wind, rain, snow, fog. Everything eases toward the target so
- * changes roll in smoothly.
- */
 import * as THREE from 'three';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { SKY_HORIZON, SKY_TOP, FOG } from '../render/setup';
@@ -25,19 +20,12 @@ const SKY = {
   fog: col('#d6dcdf'),
 };
 
-/**
- * Snow cover & wet ground for world materials: surfaces facing up turn white as snow
- * settles (uSnow); everything darkens a little when wet (uWet). Chains onto any existing
- * onBeforeCompile (wind sway etc.).
- */
 export function addWeatherCover(material: THREE.Material) {
   if (!(material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshLambertMaterial)) return;
   const m = material;
   if ((m as unknown as { __weather?: boolean }).__weather) return;
   (m as unknown as { __weather?: boolean }).__weather = true;
   const prev = m.onBeforeCompile;
-  // freeze the existing cache key now (the default one is derived from onBeforeCompile's source,
-  // which we are about to replace) so differently patched materials keep separate programs
   const prevKey = m.customProgramCacheKey();
   m.customProgramCacheKey = () => `${prevKey}|weather`;
   m.onBeforeCompile = (shader, renderer) => {
@@ -82,7 +70,7 @@ function rainMesh() {
     transparent: true,
     depthWrite: false,
     uniforms: { uTime: uniforms.uTime, uWind: uniforms.uWind, uAmount: { value: 0 }, uCenter: { value: new THREE.Vector3() } },
-    vertexShader: /* glsl */ `
+    vertexShader: `
       attribute float aEnd; attribute float aRand;
       uniform float uTime, uWind, uAmount; uniform vec3 uCenter;
       varying float vA;
@@ -93,14 +81,13 @@ function rainMesh() {
         vec2 slant = vec2(0.85, 0.3) * uWind * 0.55;
         vec3 p = vec3(position.x, y, position.z);
         p.xz += slant * (H - y);
-        // the top end trails upwind so streaks lean with the wind
         float len = 0.38 + aRand * 0.2;
         p += vec3(-slant.x * len, len, -slant.y * len) * aEnd;
         p += uCenter;
         vA = step(aRand, uAmount) * (0.35 + aRand * 0.25) * smoothstep(0.0, 1.5, y);
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
       }`,
-    fragmentShader: /* glsl */ `
+    fragmentShader: `
       varying float vA;
       void main(){ if (vA < 0.01) discard; gl_FragColor = vec4(0.82, 0.88, 0.95, vA); }`,
   });
@@ -123,7 +110,7 @@ function snowMesh() {
     transparent: true,
     depthWrite: false,
     uniforms: { uTime: uniforms.uTime, uWind: uniforms.uWind, uAmount: { value: 0 }, uCenter: { value: new THREE.Vector3() }, uScale: { value: window.innerHeight * 0.5 } },
-    vertexShader: /* glsl */ `
+    vertexShader: `
       attribute float aRand;
       uniform float uTime, uWind, uAmount, uScale; uniform vec3 uCenter;
       varying float vA;
@@ -134,7 +121,6 @@ function snowMesh() {
         vec3 p = vec3(position.x, y, position.z);
         p.x += sin(uTime * 1.2 + aRand * 40.0) * 0.45 + uWind * (H - y) * 0.55;
         p.z += cos(uTime * 0.9 + aRand * 25.0) * 0.35 + uWind * (H - y) * 0.2;
-        // wrap the drift back into the box around the hero
         p.x = mod(p.x + ${BOX.x.toFixed(1)}, ${(BOX.x * 2).toFixed(1)}) - ${BOX.x.toFixed(1)};
         p += uCenter;
         vA = step(aRand, uAmount) * smoothstep(0.0, 1.0, y);
@@ -142,7 +128,7 @@ function snowMesh() {
         gl_PointSize = uScale * (0.07 + aRand * 0.06) / -mv.z;
         gl_Position = projectionMatrix * mv;
       }`,
-    fragmentShader: /* glsl */ `
+    fragmentShader: `
       varying float vA;
       void main(){
         float d = length(gl_PointCoord - 0.5);
@@ -155,9 +141,7 @@ function snowMesh() {
   return pts;
 }
 
-/** Place clock from the weather data: local time = now + utcOffset; sunrise/sunset as local ms-of-day. */
 export interface SunClock { utcOffset: number; sunrise: number | null; sunset: number | null; isDay: boolean }
-/** Fixed time of day for the Custom menu, or 'auto' for the place's real clock. */
 export type TimeChoice = 'auto' | 'day' | 'dusk' | 'night';
 
 const DAY_MS = 86_400_000;
@@ -200,7 +184,6 @@ export class WeatherFX {
   group = new THREE.Group();
   target: WeatherState = { ...CLEAR };
   current: WeatherState = { ...CLEAR };
-  /** 0 = day, 1 = night (smoothed); read by lanterns etc. */
   night = 0;
   private rain = rainMesh();
   private snow = snowMesh();
@@ -231,16 +214,11 @@ export class WeatherFX {
   setClock(c: SunClock | null) { this.clock = c; }
   setTime(t: TimeChoice) { this.time = t; }
 
-  /** Local time at the place, as ms since local midnight (null if unknown). */
   localTimeOfDay(): number | null {
     if (!this.clock) return null;
     return (((Date.now() + this.clock.utcOffset * 1000) % DAY_MS) + DAY_MS) % DAY_MS;
   }
 
-  /**
-   * Sun elevation (-1 deep night … 1 high noon) and progress p across the day (0 sunrise → 1 sunset)
-   * from the place clock, or a fixed time chosen in the menu.
-   */
   private sunPosition(): { el: number; p: number } {
     if (this.time === 'day') return { el: 0.75, p: 0.42 };
     if (this.time === 'dusk') return { el: 0.04, p: 0.97 };
@@ -248,9 +226,8 @@ export class WeatherFX {
     const c = this.clock;
     const tod = this.localTimeOfDay();
     if (!c || tod === null) return { el: 0.7, p: 0.42 };
-    if (c.sunrise === null || c.sunset === null) return c.isDay ? { el: 0.35, p: 0.5 } : { el: -0.6, p: 0.5 }; // polar day/night
+    if (c.sunrise === null || c.sunset === null) return c.isDay ? { el: 0.35, p: 0.5 } : { el: -0.6, p: 0.5 };
     const sr = c.sunrise, ss = c.sunset, len = ss - sr;
-    // short winter days keep the sun low, long summer days lift it high
     const peak = THREE.MathUtils.clamp(len / (16 * 3_600_000), 0.25, 0.9);
     if (tod >= sr && tod <= ss) {
       const p = (tod - sr) / len;
@@ -258,17 +235,14 @@ export class WeatherFX {
     }
     const nightLen = DAY_MS - len;
     const q = ((tod - ss + DAY_MS) % DAY_MS) / nightLen;
-    // shallow twilight just after sunset / before sunrise, deep night in between
     return { el: -Math.sin(Math.PI * q) * 0.8, p: q < 0.5 ? 1 : 0 };
   }
 
-  /** Ease toward the target and apply. `focus` is where the camera looks. */
   update(dt: number, focus: THREE.Vector3) {
     const c = this.current, t = this.target;
     const k = 1 - Math.exp(-dt * 0.8);
     (Object.keys(c) as (keyof WeatherState)[]).forEach((key) => { c[key] += (t[key] - c[key]) * k; });
 
-    // precipitation particles follow the camera focus
     const center = new THREE.Vector3(focus.x - 2, 0, focus.z - 4);
     for (const p of [this.rain, this.snow]) (p.material as THREE.ShaderMaterial).uniforms.uCenter.value.copy(center);
     (this.rain.material as THREE.ShaderMaterial).uniforms.uAmount.value = c.rain;
@@ -276,7 +250,6 @@ export class WeatherFX {
     this.rain.visible = c.rain > 0.01;
     this.snow.visible = c.snow > 0.01;
 
-    // wind, settling snow (slowly builds, melts faster in sun or rain), wet ground
     uniforms.uWind.value = c.wind;
     const settle = t.snow > 0.05 ? 0.05 * t.snow : -0.04 * (0.5 + c.sun + c.rain);
     this.snowCover = THREE.MathUtils.clamp(this.snowCover + settle * dt * 3, 0, 0.85);
@@ -284,7 +257,6 @@ export class WeatherFX {
     this.wet += ((t.rain > 0.05 ? 1 : 0) - this.wet) * (1 - Math.exp(-dt * (t.rain > 0.05 ? 0.6 : 0.15)));
     uniforms.uWet.value = this.wet * (1 - this.snowCover);
 
-    // ---- day & night ----
     const { el, p } = this.sunPosition();
     const dayTarget = THREE.MathUtils.smoothstep(el, -0.1, 0.16);
     this.night += (1 - dayTarget - this.night) * (1 - Math.exp(-dt * 1.5));
@@ -292,12 +264,10 @@ export class WeatherFX {
     const twilight = THREE.MathUtils.clamp(1 - Math.abs(el) / 0.22, 0, 1) * (0.4 + c.sun * 0.6);
     uniforms.uNight.value = night;
 
-    // sun travels east (+x) → south (+z, toward the camera) → west; the moon sits still at night
     const az = Math.PI * p;
     this.sunDir.set(Math.cos(az) * 22, Math.max(0.12, el) * 30 + 3, Math.sin(az) * 16 + 4);
     this.sunOffset.copy(day > 0.4 ? this.sunDir : MOON_DIR);
 
-    // light: clear sun vs flat overcast; fog swallows some light; low sun is weaker and warmer
     const overcast = 1 - c.sun;
     const sunI = (0.55 + c.sun * 2.05) * (1 - c.fog * 0.45) * (1 - c.rain * 0.35) * (0.35 + 0.65 * THREE.MathUtils.smoothstep(el, 0, 0.35));
     const moonI = 0.5 * (1 - c.fog * 0.5) * (0.45 + c.sun * 0.55);
@@ -309,7 +279,6 @@ export class WeatherFX {
     this.renderer.toneMappingExposure = (1.0 + c.sun * 0.05 + this.snowCover * 0.05 - c.rain * 0.08) * (1 - night * 0.08);
     this.bloom.strength = (0.16 + c.sun * 0.16) * day + 0.42 * night;
 
-    // sky: weather colours by day, warm twilight near the horizon, deep blue night with stars
     SKY_TOP.copy(SKY.clearTop).lerp(SKY.greyTop, overcast).lerp(SKY.stormTop, c.rain * 0.7).lerp(SKY.snowTop, c.snow * 0.8)
       .lerp(TWILIGHT.top, twilight * 0.6).lerp(NIGHT.top, night);
     SKY_HORIZON.copy(SKY.clearHorizon).lerp(SKY.greyHorizon, overcast).lerp(SKY.stormHorizon, c.rain * 0.6).lerp(SKY.snowHorizon, c.snow * 0.8)
@@ -317,7 +286,6 @@ export class WeatherFX {
     (this.stars.material as THREE.ShaderMaterial).uniforms.uAlpha.value = night * (1 - c.fog) * (1 - overcast * 0.85);
     this.stars.position.copy(focus);
 
-    // fog: distance haze always; thick when foggy, rain and snow shorten the view
     const fog = this.scene.fog as THREE.Fog;
     fog.color.copy(FOG).lerp(SKY.greyHorizon, overcast * 0.7).lerp(SKY.snowHorizon, c.snow * 0.6).lerp(SKY.fog, c.fog)
       .lerp(TWILIGHT.horizon, twilight * 0.35).lerp(NIGHT.fog, night * 0.9);
@@ -325,7 +293,6 @@ export class WeatherFX {
     fog.far = THREE.MathUtils.lerp(75, 24, c.fog) * (1 - c.rain * 0.25) * (1 - c.snow * 0.2);
     (this.scene.background as THREE.Color).copy(fog.color);
 
-    // windows glow brighter after dark
     for (const w of this.windows) w.emissiveIntensity = 0.7 + night * 3.2;
   }
 }

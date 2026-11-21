@@ -1,29 +1,21 @@
 import * as THREE from 'three';
 
-/** Uniforms shared by every animated shader in the world. */
 export const uniforms = {
   uTime: { value: 0 },
   uHero: { value: new THREE.Vector2(-100, -100) },
-  /** Last sword hit: x, z, strength (decays to 0). Grass flattens around it. */
   uHit: { value: new THREE.Vector3(-100, -100, 0) },
-  /** Weather: wind strength 0..1, settled snow 0..1, wet ground 0..1. */
   uWind: { value: 0 },
   uSnow: { value: 0 },
   uWet: { value: 0 },
-  /** 0 = full day, 1 = deep night. */
   uNight: { value: 0 },
 };
 
-/** Low-poly helpers ---------------------------------------------------------- */
-
-/** Paint a whole geometry one colour (vertex colours, non-indexed, no uv). */
 export function tint(geo: THREE.BufferGeometry, color: THREE.ColorRepresentation, jitter = 0, seed = 1): THREE.BufferGeometry {
   const g = geo.index ? geo.toNonIndexed() : geo;
   g.deleteAttribute('uv');
   const c = new THREE.Color(color);
   const n = g.attributes.position.count;
   const arr = new Float32Array(n * 3);
-  // one colour per triangle so flat shading reads as facets
   for (let t = 0; t < n; t += 3) {
     const k = jitter ? 1 + (Math.sin((t + seed) * 12.9898) * 43758.5453 % 1) * jitter : 1;
     for (let v = 0; v < 3 && t + v < n; v++) {
@@ -36,7 +28,6 @@ export function tint(geo: THREE.BufferGeometry, color: THREE.ColorRepresentation
   return g;
 }
 
-/** Push vertices around consistently (shared corners move together) for organic shapes. */
 export function wobble(geo: THREE.BufferGeometry, amount: number, seed = 0): THREE.BufferGeometry {
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -49,9 +40,7 @@ export function wobble(geo: THREE.BufferGeometry, amount: number, seed = 0): THR
   return geo;
 }
 
-/** Inject a wind sway into a standard material; vertices above `minY` sway more the higher they are. */
 export function addWind(material: THREE.Material, amp: number, minY: number) {
-  // distinct cache key so materials with different sway don't share one program
   material.customProgramCacheKey = () => `wind-${amp}-${minY}`;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uniforms.uTime;
@@ -77,7 +66,6 @@ export function standard(opts: THREE.MeshStandardMaterialParameters = {}) {
   return new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0, flatShading: true, ...opts });
 }
 
-/** Soft canvas texture (smooth, mip-mapped). */
 export function canvasTexture(canvas: HTMLCanvasElement, repeat = false): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(canvas);
   t.colorSpace = THREE.SRGBColorSpace;
