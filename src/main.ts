@@ -191,7 +191,7 @@ async function init() {
   ui.waitForStart().then(() => {
     input.drain();
     state = 'intro';
-    ui.showHud(content.profile.name);
+    ui.showHud(content.player);
     minimap.show();
     weatherUI.show();
   });

@@ -11,6 +11,7 @@ export interface SkillNode {
 
 export interface Content {
   profile: { name: string; role: string; tagline: string; location: string };
+  player: string;
   about: { title: string; paragraphs: string[] };
   projects: { title: string; year: string; role: string; summary: string; tags: string[]; links: Link[] }[];
   skills: SkillNode[];
