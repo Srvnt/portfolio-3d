@@ -8,7 +8,7 @@ import { createGrass } from './world/grass';
 import { createNature, cutBushes, regrowBushes, treesNear } from './world/nature';
 import { createGroundDetails } from './world/decals';
 import { animateFlags, createBuilding } from './world/buildings';
-import { Chest, createBridges, createFountain, createLanterns, createLetters, createPushables, createSign } from './world/props';
+import { Chest, createBridges, createFountain, createGate, createLanterns, createPushables, createSign } from './world/props';
 import { School, SPECIES } from './world/fish';
 import { Fishing } from './fishing';
 import { Enemies } from './combat/enemies';
@@ -53,7 +53,8 @@ async function init() {
   }
   scene.add(town);
   scene.add(createPushables(map, physics));
-  scene.add(createLetters(content.profile.name, physics));
+  const gate = createGate(content.profile.name, physics);
+  scene.add(gate.group);
 
   const chests = new Map<string, Chest>();
   for (const it of map.interactables) {
@@ -336,6 +337,8 @@ async function init() {
     ui.setHp(hero.hp, hero.maxHp);
     weather.update(dt, focus);
     lanterns.setNight(weather.night, t);
+    gate.setNight(weather.night, t);
+    gate.animate(t, weather.current.wind);
     // raindrops dimpling the river near the hero
     if (weather.current.rain > 0.1 && Math.random() < dt * 30 * weather.current.rain) {
       const rx = hero.x + (Math.random() - 0.5) * 24, rz = hero.z + (Math.random() - 0.5) * 18;

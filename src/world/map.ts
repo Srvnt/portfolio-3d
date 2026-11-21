@@ -60,8 +60,8 @@ export const BUILDINGS: Building[] = [
 const CHESTS: [number, number][] = [[3, 3], [40, 33], [14, 33], [65, 6], [6, 53]];
 export const SIGN: [number, number] = [19, 15];
 export const FOUNTAIN = { x: 22, z: 17.5 };
-/** Name letters stand across the south edge of the plaza. */
-export const LETTERS = { x: 22, z: 20.9, maxWidth: 7.8 };
+/** The village gate (with the name) spans the south road just below the plaza. */
+export const GATE = { x: 22, z: 22.4, span: 4.6 };
 
 export class WorldMap {
   readonly W = 72;
@@ -206,6 +206,7 @@ export class WorldMap {
     this.crateSpots.push({ x: 18.6, z: 14.6, kind: 'crate' }, { x: 19.3, z: 14.5, kind: 'crate' }, { x: 25.4, z: 14.6, kind: 'barrel' }, { x: 24.7, z: 14.5, kind: 'barrel' });
 
     this.rect(21, 16, 22, 18, (_x, _z, i) => (this.occ[i] = Occ.Fixture)); // fountain
+    for (const side of [-1, 1]) this.occ[this.i(Math.floor(GATE.x + side * GATE.span / 2), Math.floor(GATE.z))] = Occ.Fixture; // gate pillars
     this.occ[this.i(SIGN[0], SIGN[1])] = Occ.Fixture;
     this.interactables.push({
       id: 'sign', kind: 'sign', label: 'Signpost',
