@@ -21,6 +21,11 @@ export class Hero {
   private scarfTail: THREE.Mesh;
   private phase = 0;
   private yaw = 0;
+  /** Fishing pose: rod out, right arm raised. `cast` 0..1 drives the casting swing. */
+  fishing = false;
+  cast = 1;
+  private rod = new THREE.Group();
+  private rodTipObj = new THREE.Object3D();
 
   constructor(x: number, z: number, physics: Physics) {
     const skin = mat('#f2c49b');
@@ -103,6 +108,23 @@ export class Hero {
 
     this.group.add(this.model);
 
+    // fishing rod held in the right hand (arms[0]); hidden until fishing
+    const rodDir = new THREE.Vector3(0, -0.75, 0.66).normalize();
+    const rodLen = 1.5;
+    const rodGeo = new THREE.CylinderGeometry(0.008, 0.02, rodLen, 6);
+    rodGeo.translate(0, rodLen / 2, 0);
+    const rodMesh = new THREE.Mesh(rodGeo, mat('#7a4a26', { roughness: 0.5 }));
+    rodMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rodDir);
+    rodMesh.castShadow = true;
+    const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.04, 10), mat('#b8bcc4', { metalness: 0.7, roughness: 0.3 }));
+    reel.position.copy(rodDir).multiplyScalar(0.12).add(new THREE.Vector3(0.04, 0, 0));
+    reel.rotation.z = Math.PI / 2;
+    this.rodTipObj.position.copy(rodDir).multiplyScalar(rodLen);
+    this.rod.add(rodMesh, reel, this.rodTipObj);
+    this.rod.position.set(0, -0.32, 0);
+    this.rod.visible = false;
+    this.arms[0].add(this.rod);
+
     // physics capsule approximated by a sphere
     this.body = new CANNON.Body({
       mass: 6,
@@ -168,7 +190,21 @@ export class Hero {
     this.torso.rotation.x = 0.08 * moving + 0.12 * running;
     this.model.position.y = bob * 0.5;
     this.scarfTail.rotation.x = 0.3 + moving * 0.6 + Math.sin(t * 8) * 0.12 * moving;
+    this.rod.visible = this.fishing;
+    if (this.fishing) {
+      // rod raised; during a cast it swings back over the shoulder and snaps forward
+      const swing = this.cast < 1 ? Math.sin(this.cast * Math.PI) * 1.4 : 0;
+      this.arms[0].rotation.x = -1.25 + swing;
+      this.arms[1].rotation.x = -0.6;
+      this.legs[0].rotation.x = this.legs[1].rotation.x = 0;
+    }
     this.model.rotation.y = this.yaw;
+  }
+
+  /** World position of the rod tip (where the line starts). */
+  rodTip(out: THREE.Vector3) {
+    this.group.updateMatrixWorld(true);
+    return this.rodTipObj.getWorldPosition(out);
   }
 
   face(x: number, z: number) {

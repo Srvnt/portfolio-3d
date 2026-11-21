@@ -185,3 +185,37 @@ export class Butterflies {
     }
   }
 }
+
+/** Expanding rings on the water surface. */
+export class Ripples {
+  group = new THREE.Group();
+  private pool: { m: THREE.Mesh; life: number; max: number; size: number }[] = [];
+  private next = 0;
+  constructor(count = 16) {
+    const geo = new THREE.RingGeometry(0.86, 1, 40);
+    geo.rotateX(-Math.PI / 2);
+    for (let i = 0; i < count; i++) {
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#eafaff', transparent: true, opacity: 0, depthWrite: false }));
+      m.visible = false;
+      this.group.add(m);
+      this.pool.push({ m, life: 0, max: 1, size: 1 });
+    }
+  }
+  emit(at: THREE.Vector3, size = 0.6, life = 1.2) {
+    const p = this.pool[this.next];
+    this.next = (this.next + 1) % this.pool.length;
+    p.m.position.set(at.x, 0.07, at.z);
+    p.m.visible = true;
+    p.life = 0; p.max = life; p.size = size;
+  }
+  update(dt: number) {
+    for (const p of this.pool) {
+      if (!p.m.visible) continue;
+      p.life += dt;
+      const k = p.life / p.max;
+      if (k >= 1) { p.m.visible = false; continue; }
+      p.m.scale.setScalar(0.08 + k * p.size);
+      (p.m.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.75;
+    }
+  }
+}

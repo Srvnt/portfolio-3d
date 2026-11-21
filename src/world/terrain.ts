@@ -3,6 +3,7 @@ import { BUILDINGS, FOUNTAIN, Tile, WorldMap } from './map';
 import { hash2, rng, valueNoise } from '../core/random';
 import { canvasTexture, makeCanvas } from './shared';
 
+export const RIVERBED_Y = -0.32;
 export const GRASS_BASE = '#4f8e32';
 
 /** Height of the land. The village is flat; hills rise outside it to frame the valley. */
@@ -57,7 +58,17 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
 
   // riverbank sand, then riverbed
   blob('#d9c48e', 1.05, isWet, 4);
-  blob('#3d6f64', 0.8, isWet, 6);
+  // cut the river channel out of the ground (transparent → the deeper riverbed shows through)
+  blurred(ctx, 6, (l) => {
+    l.fillStyle = '#000';
+    l.beginPath();
+    forTiles(isWet, (cx, cy, x, z) => {
+      const r = 0.8 * PPU * (0.92 + hash2(x, z, 77) * 0.16);
+      l.moveTo(cx + r, cy);
+      l.arc(cx, cy, r, 0, Math.PI * 2);
+    });
+    l.fill();
+  }, 'destination-out');
   // paths: darker rim then light core
   blob('#b8955f', 0.8, (t) => t === Tile.Path, 2);
   blob('#dcc08a', 0.7, (t) => t === Tile.Path, 3);
@@ -200,11 +211,12 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
  * (Setting ctx.filter and filling shape-by-shape allocates a full-size
  * temporary buffer per shape — that blew memory up to many GB.)
  */
-export function blurred(ctx: CanvasRenderingContext2D, blur: number, draw: (layer: CanvasRenderingContext2D) => void) {
+export function blurred(ctx: CanvasRenderingContext2D, blur: number, draw: (layer: CanvasRenderingContext2D) => void, op: GlobalCompositeOperation = 'source-over') {
   const { canvas: layer, ctx: l } = makeCanvas(ctx.canvas.width, ctx.canvas.height);
   draw(l);
   ctx.save();
   ctx.filter = `blur(${blur}px)`;
+  ctx.globalCompositeOperation = op;
   ctx.drawImage(layer, 0, 0);
   ctx.restore();
   layer.width = layer.height = 0; // release the scratch buffer now
@@ -216,12 +228,19 @@ export function createTerrain(map: WorldMap) {
   const tex = canvasTexture(paintGround(map));
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(map.W, map.H),
-    new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ map: tex, roughness: 1, alphaTest: 0.5 }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(map.W / 2, 0, map.H / 2);
   ground.receiveShadow = true;
   group.add(ground);
+
+  // deeper riverbed under the channel: pebbles and silt, seen through the water
+  const bed = new THREE.Mesh(new THREE.PlaneGeometry(map.W, map.H), new THREE.MeshStandardMaterial({ map: riverbedTexture(map), roughness: 1 }));
+  bed.rotation.x = -Math.PI / 2;
+  bed.position.set(map.W / 2, RIVERBED_Y, map.H / 2);
+  bed.receiveShadow = true;
+  group.add(bed);
 
   // rolling hills around the valley (low-poly)
   const M = 34;
@@ -236,7 +255,8 @@ export function createTerrain(map: WorldMap) {
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
     const h = heightAt(map, x, z);
-    pos.setY(i, h - 0.04);
+    // inside the village the hills sit below the riverbed (hidden under the ground plane)
+    pos.setY(i, h > 0 ? h - 0.04 : -0.8);
     c.copy(low).lerp(high, Math.min(1, h / 8)).multiplyScalar(0.92 + valueNoise(x * 0.3, z * 0.3, 9) * 0.16);
     colors.set([c.r, c.g, c.b], i * 3);
   }
@@ -247,4 +267,33 @@ export function createTerrain(map: WorldMap) {
   group.add(hills);
 
   return group;
+}
+
+/** Silt and pebbles for the river bottom; darker in the deep middle. */
+function riverbedTexture(map: WorldMap): THREE.CanvasTexture {
+  const ppu = 16;
+  const { canvas, ctx } = makeCanvas(map.W * ppu, map.H * ppu);
+  ctx.fillStyle = '#6a7a52';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  blurred(ctx, 10, (l) => {
+    l.fillStyle = '#2c5a58';
+    l.beginPath();
+    for (let z = 0; z < map.H; z++) {
+      const cx = map.riverCenter(z + 0.5) * ppu, cy = (z + 0.5) * ppu;
+      l.moveTo(cx + ppu, cy);
+      l.arc(cx, cy, ppu * 1.0, 0, Math.PI * 2);
+    }
+    l.fill();
+  });
+  const r = rng(5);
+  for (let i = 0; i < 2600; i++) {
+    const z = r() * map.H;
+    const x = map.riverCenter(z) + (r() - 0.5) * 3.4;
+    const v = 120 + Math.floor(r() * 80);
+    ctx.fillStyle = `rgba(${v},${v - 6},${v - 20},0.8)`;
+    ctx.beginPath();
+    ctx.ellipse(x * ppu, z * ppu, 1 + r() * 2.5, 1 + r() * 2, r() * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  return canvasTexture(canvas);
 }

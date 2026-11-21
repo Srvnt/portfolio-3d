@@ -22,7 +22,7 @@ export interface Building {
 
 export interface Interactable {
   id: string;
-  kind: 'door' | 'sign' | 'chest';
+  kind: 'door' | 'sign' | 'chest' | 'fish';
   x: number; z: number;
   range: number;
   label: string;
@@ -62,6 +62,17 @@ export class WorldMap {
   /** Free spots for pushable crates and barrels. */
   crateSpots: { x: number; z: number; kind: 'crate' | 'barrel' }[] = [];
   start = { x: 22, z: 23.5 };
+  /** Docks on the riverbank: where the hero stands, which way the water is, and where the bobber lands. */
+  fishingSpots: { x: number; z: number; dir: 1 | -1; bobber: { x: number; z: number } }[] = [];
+  private center: Float32Array = new Float32Array(0);
+
+  /** X of the river's centre line at any z (smoothly interpolated between rows). */
+  riverCenter(z: number): number {
+    const zc = Math.min(this.H - 1, Math.max(0, z - 0.5));
+    const z0 = Math.floor(zc), z1 = Math.min(this.H - 1, z0 + 1);
+    const t = zc - z0;
+    return this.center[z0] * (1 - t) + this.center[z1] * t;
+  }
 
   constructor() {
     const n = this.W * this.H;
@@ -109,6 +120,34 @@ export class WorldMap {
     this.road(8, 26, 8, 28);
     this.road(28, 27, 28, 28);
     this.road(39, 15, 39, 16);
+
+    // river centre line (bridge tiles count as river)
+    this.center = new Float32Array(H);
+    for (let z = 0; z < H; z++) {
+      let sum = 0, n = 0;
+      for (let x = 0; x < W; x++) {
+        const t = this.tiles[this.i(x, z)];
+        if (t === Tile.Water || t === Tile.Bridge) { sum += x + 0.5; n++; }
+      }
+      this.center[z] = n ? sum / n : W / 2;
+    }
+
+    // riverside footpaths leading to three fishing docks
+    const westBank = (z: number) => { let x = 0; while (x < W && this.tiles[this.i(x, z)] !== Tile.Water) x++; return x - 1; };
+    const eastBank = (z: number) => { let x = W - 1; while (x >= 0 && this.tiles[this.i(x, z)] !== Tile.Water) x--; return x + 1; };
+    const riverside = (z0: number, z1: number, spotZ: number, bank: (z: number) => number, dir: 1 | -1) => {
+      for (let z = z0; z <= z1; z++) { const bx = bank(z); this.road(bx, z, bx, z); }
+      const bx = bank(spotZ);
+      this.fishingSpots.push({ x: bx + 0.5, z: spotZ + 0.5, dir, bobber: { x: bx + 0.5 + dir * 1.9, z: spotZ + 0.5 } });
+    };
+    riverside(6, 16, 6, westBank, 1);
+    riverside(19, 26, 26, westBank, 1);
+    riverside(19, 28, 28, eastBank, -1);
+    this.fishingSpots.forEach((f, i) => this.interactables.push({
+      id: `fish-${i}`, kind: 'fish', label: 'Fishing spot',
+      x: f.x, z: f.z, range: 1.3,
+      labelPos: [f.x + f.dir * 0.6, 1.7, f.z],
+    }));
 
     const trail = (x0: number, z0: number, x1: number, z1: number) =>
       this.rect(x0, z0, x1, z1, (_x, _z, i) => (this.reserved[i] = 1));

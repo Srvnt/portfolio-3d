@@ -8,8 +8,10 @@ import { createGrass } from './world/grass';
 import { createNature } from './world/nature';
 import { createGroundDetails } from './world/decals';
 import { animateFlags, createBuilding } from './world/buildings';
-import { Chest, createBridges, createFountain, createLetters, createPushables, createSign } from './world/props';
-import { Butterflies, createFallingLeaves, createMotes, Puffs } from './fx/particles';
+import { Chest, createBridges, createDocks, createFountain, createLetters, createPushables, createSign } from './world/props';
+import { School, SPECIES } from './world/fish';
+import { Fishing } from './fishing';
+import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples } from './fx/particles';
 import { uniforms } from './world/shared';
 import { Physics } from './physics';
 import { Hero } from './hero';
@@ -36,6 +38,7 @@ async function init() {
   scene.add(createGroundDetails(map));
   scene.add(createFallingLeaves(map, lowEnd ? 120 : 240));
   scene.add(createBridges(map));
+  scene.add(createDocks(map));
   scene.add(createFountain());
   const chimneys: THREE.Vector3[] = [];
   const town = new THREE.Group();
@@ -67,8 +70,22 @@ async function init() {
   hero.face(map.start.x, map.start.z - 1);
   scene.add(hero.group);
 
+  // river life + fishing
+  const splash = new Puffs(30, '#eaf8ff', 0.85);
+  const ripples = new Ripples(18);
+  const school = new School(map, Math.max(8, SPECIES.length * 2));
+  school.onSplash = (p, big) => {
+    ripples.emit(p, big ? 0.9 : 0.5);
+    for (let i = 0; i < (big ? 5 : 3); i++)
+      splash.emit(p.clone(), new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.8 + Math.random() * 0.6, (Math.random() - 0.5) * 0.8), 0.45, 0.1, 1.2);
+  };
+  scene.add(school.group, splash.group, ripples.group);
+  const fishing = new Fishing(scene, hero, school, splash, ripples);
+  const caughtFacts = new Set<number>();
+  let shownAllCaught = false;
+
   // ---------------------------------------------------------------- state
-  type State = 'title' | 'intro' | 'play' | 'dialog' | 'panel';
+  type State = 'title' | 'intro' | 'play' | 'dialog' | 'panel' | 'fishing';
   let state: State = 'title';
   const input = new Input();
   const ui = new UI(content);
@@ -109,6 +126,10 @@ async function init() {
       chest.open();
       state = 'dialog';
       ui.dialog('Treasure', [already ? 'The chest is empty… you already found this one.' : content.secrets[it.index ?? 0] ?? '…'], () => (state = 'play'));
+    } else if (it.kind === 'fish') {
+      const spot = map.fishingSpots[Number(it.id.split('-')[1])];
+      state = 'fishing';
+      fishing.start(spot.bobber);
     }
   };
 
@@ -153,10 +174,40 @@ async function init() {
         else if (presses.some((k) => INTERACT_KEYS.has(k))) ui.advance();
       } else if (state === 'panel' && (presses.includes('Escape') || presses.includes('KeyE'))) {
         ui.closePanel();
+      } else if (state === 'fishing') {
+        const ax = input.axis();
+        if (presses.includes('Escape') || ax.x || ax.z) {
+          fishing.stop(); // walking away or Esc reels the line in
+          state = 'play';
+        } else {
+          const res = fishing.update(dt, t, presses.some((k) => INTERACT_KEYS.has(k)));
+          if (res?.kind === 'caught') {
+            const idx = res.fish.species % Math.max(1, content.fish.length);
+            const info = content.fish[idx] ?? { name: 'Fish', fact: '…' };
+            caughtFacts.add(idx);
+            const all = caughtFacts.size >= content.fish.length;
+            state = 'dialog';
+            ui.dialog(`You caught a ${info.name}! · ${caughtFacts.size}/${content.fish.length}`,
+              all && caughtFacts.size === content.fish.length && !shownAllCaught
+                ? [info.fact, 'You have caught every kind of fish in the river. Thanks for getting to know me!']
+                : [info.fact],
+              () => (state = 'play'));
+            if (all) shownAllCaught = true;
+          } else if (res?.kind === 'early') {
+            state = 'dialog';
+            ui.dialog('Too soon!', ['You pulled before the fish bit. Wait until the bobber dips under the water, then press E.'], () => (state = 'play'));
+          } else if (res?.kind === 'late') {
+            state = 'dialog';
+            ui.dialog('It got away!', ['The fish stole the bait. Press E the moment the bobber dips and the ! appears.'], () => (state = 'play'));
+          }
+        }
       }
     }
 
     physics.step(dt);
+    school.update(dt, t);
+    ripples.update(dt);
+    splash.update(dt);
     hero.animate(dt, t);
     uniforms.uHero.value.set(hero.x, hero.z);
     for (const c of chests.values()) c.update(dt, t);
@@ -208,10 +259,12 @@ async function init() {
     }
 
     ui.updateLabels(map.interactables, camera, near?.id ?? null, state !== 'play');
+    ui.fishHint(state === 'fishing' && fishing.hint ? `${fishing.hint}  ·  Esc to stop` : null);
+    ui.fishAlert(state === 'fishing' ? fishing.alertAt : null, camera);
     composer.render(dt);
   });
 
-  if (import.meta.env.DEV) Object.assign(window, { __dbg: { scene, camera, renderer, hero, map, physics } });
+  if (import.meta.env.DEV) Object.assign(window, { __dbg: { scene, camera, renderer, hero, map, physics, fishing, school } });
 }
 
 init().catch((err) => {

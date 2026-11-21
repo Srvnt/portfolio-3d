@@ -274,3 +274,33 @@ export function createBridges(map: WorldMap): THREE.Group {
   }
   return shadowed(g);
 }
+
+/** Small wooden piers at the fishing spots, reaching out over the water. */
+export function createDocks(map: WorldMap): THREE.Group {
+  const g = new THREE.Group();
+  const plank = standard({ color: '#a8743f' });
+  const dark = standard({ color: '#6b4428' });
+  for (const s of map.fishingSpots) {
+    const d = new THREE.Group();
+    // planks run across the pier; the pier starts at the bank edge (local x = 0) and reaches ~1 unit over the water
+    for (let x = 0; x < 0.95; x += 0.2) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.07, 0.95 + (Math.random() - 0.5) * 0.06), plank);
+      p.position.set(x + 0.1, 0.14 + (Math.random() - 0.5) * 0.015, 0);
+      p.rotation.y = (Math.random() - 0.5) * 0.04;
+      d.add(p);
+    }
+    for (const px of [0.15, 0.85]) for (const pz of [-0.45, 0.45]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.7, 6), dark);
+      post.position.set(px, -0.12, pz);
+      d.add(post);
+    }
+    // a bucket and a little sign
+    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.2, 10, 1, true), standard({ color: '#8a8f98', flatShading: false, side: THREE.DoubleSide }));
+    bucket.position.set(0.35, 0.28, 0.32);
+    d.add(bucket);
+    d.position.set(s.x + s.dir * 0.5, 0, s.z);
+    d.scale.x = s.dir; // mirror for the east bank
+    g.add(d);
+  }
+  return shadowed(g);
+}

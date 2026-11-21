@@ -38,13 +38,14 @@ const NOISE = /* glsl */ `
 export function createWater(map: WorldMap) {
   const mat = new THREE.ShaderMaterial({
     transparent: true,
+    depthWrite: false,
     fog: true,
     uniforms: THREE.UniformsUtils.merge([
       THREE.UniformsLib.fog,
       {
         uMask: { value: riverMask(map) },
         uDeep: { value: new THREE.Color('#1f6a9e') },
-        uShallow: { value: new THREE.Color('#4fc4c4') },
+        uShallow: { value: new THREE.Color("#3fa8b0") },
         uFoam: { value: new THREE.Color('#f2fbff') },
       },
     ]),
@@ -77,11 +78,11 @@ export function createWater(map: WorldMap) {
         col = mix(col, uFoam, edge * 0.9);
         // drifting ripple streaks
         float streak = smoothstep(0.78, 0.86, vnoise(vec2(p.x * 3.0, p.y * 0.8 - uTime * 1.2)));
-        col += streak * 0.22 * depth;
+        col += streak * 0.1 * depth;
         // sparkles (pushed into bloom range)
         float s = vnoise(p * 9.0 + uTime * vec2(0.4, 1.1));
         col += smoothstep(0.93, 0.99, s) * 2.2 * depth;
-        gl_FragColor = vec4(col, mix(0.82, 0.96, depth));
+        gl_FragColor = vec4(col, mix(0.5, 0.62, depth)); // clear enough to see fish and the riverbed
         #include <fog_fragment>
       }`,
   });

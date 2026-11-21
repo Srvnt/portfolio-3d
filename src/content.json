@@ -18,54 +18,134 @@
       "year": "2026",
       "role": "Lead developer",
       "summary": "Placeholder: the problem, what you built, and the result in one or two sentences.",
-      "tags": ["TypeScript", "Three.js"],
-      "links": [{ "label": "Live", "url": "https://example.com" }]
+      "tags": [
+        "TypeScript",
+        "Three.js"
+      ],
+      "links": [
+        {
+          "label": "Live",
+          "url": "https://example.com"
+        }
+      ]
     },
     {
       "title": "Project Two",
       "year": "2025",
       "role": "Designer & developer",
       "summary": "Placeholder: measurable impact reads best, e.g. “cut load time by 40%”.",
-      "tags": ["React", "Node"],
-      "links": [{ "label": "Case study", "url": "https://example.com" }]
+      "tags": [
+        "React",
+        "Node"
+      ],
+      "links": [
+        {
+          "label": "Case study",
+          "url": "https://example.com"
+        }
+      ]
     },
     {
       "title": "Project Three",
       "year": "2024",
       "role": "Solo",
       "summary": "Placeholder: a side project that shows curiosity.",
-      "tags": ["WebGL"],
+      "tags": [
+        "WebGL"
+      ],
       "links": []
     }
   ],
   "skills": [
-    { "name": "TypeScript", "level": 5, "category": "Weapons · Languages" },
-    { "name": "Python", "level": 3, "category": "Weapons · Languages" },
-    { "name": "React", "level": 4, "category": "Armour · Frameworks" },
-    { "name": "Three.js", "level": 4, "category": "Armour · Frameworks" },
-    { "name": "Figma", "level": 3, "category": "Tools" },
-    { "name": "Git", "level": 4, "category": "Tools" }
+    {
+      "name": "TypeScript",
+      "level": 5,
+      "category": "Weapons · Languages"
+    },
+    {
+      "name": "Python",
+      "level": 3,
+      "category": "Weapons · Languages"
+    },
+    {
+      "name": "React",
+      "level": 4,
+      "category": "Armour · Frameworks"
+    },
+    {
+      "name": "Three.js",
+      "level": 4,
+      "category": "Armour · Frameworks"
+    },
+    {
+      "name": "Figma",
+      "level": 3,
+      "category": "Tools"
+    },
+    {
+      "name": "Git",
+      "level": 4,
+      "category": "Tools"
+    }
   ],
   "experience": [
-    { "period": "2024 — now", "title": "Job title", "company": "Company", "summary": "Placeholder: what you own and one highlight." },
-    { "period": "2021 — 2024", "title": "Job title", "company": "Company", "summary": "Placeholder: what you own and one highlight." }
+    {
+      "period": "2024 — now",
+      "title": "Job title",
+      "company": "Company",
+      "summary": "Placeholder: what you own and one highlight."
+    },
+    {
+      "period": "2021 — 2024",
+      "title": "Job title",
+      "company": "Company",
+      "summary": "Placeholder: what you own and one highlight."
+    }
   ],
   "contact": {
     "intro": "Send a letter by carrier bird — or just email. I reply within a day or two.",
     "links": [
-      { "label": "Email", "url": "mailto:you@example.com" },
-      { "label": "LinkedIn", "url": "https://www.linkedin.com/" },
-      { "label": "GitHub", "url": "https://github.com/" }
+      {
+        "label": "Email",
+        "url": "mailto:you@example.com"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/"
+      }
     ]
   },
   "sign": [
     "Welcome, traveller!",
     "Each building holds a chapter of my story: Home, the Guild, the Smithy, the Library and the Post Office.",
+    "Down by the river there are fishing docks. Every fish you catch tells you something about me.",
     "Walk to a door and press E to enter. Treasure is hidden in the woods…"
   ],
   "secrets": [
     "You found a fun fact! Placeholder: something surprising about you.",
     "You found a side quest! Placeholder: a hobby project or game jam entry.",
     "You found the developer's notes! This world is hand-built with Three.js — no game engine."
+  ],
+  "fish": [
+    {
+      "name": "Pike",
+      "fact": "I love fishing. A calm lake at dawn, coffee in a thermos and a line in the water is my favourite way to reset."
+    },
+    {
+      "name": "Perch",
+      "fact": "I'm a hunter too. Long, quiet days in the forest teach patience, focus and respect for nature."
+    },
+    {
+      "name": "Trout",
+      "fact": "I play golf. It's strategy, patience and fresh air in one sport, and it keeps me humble."
+    },
+    {
+      "name": "Salmon",
+      "fact": "I go to the gym regularly. Consistent training keeps both body and mind sharp, just like steady practice does for code."
+    }
   ]
 }

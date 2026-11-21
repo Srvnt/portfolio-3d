@@ -239,6 +239,43 @@ html, body {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
+/* ---------- fishing ---------- */
+.fish-hint {
+  position: fixed;
+  left: 50%;
+  top: 22px;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  font-weight: 800;
+  font-size: 16px;
+  color: #1c2340;
+  background: rgba(255, 252, 244, 0.92);
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(20, 30, 60, 0.25);
+  max-width: calc(100vw - 32px);
+  text-align: center;
+  pointer-events: none;
+}
+.fish-hint.now { background: var(--gold); animation: pulse 0.35s ease-in-out infinite; }
+.fish-alert {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  font: 800 30px var(--font-title);
+  color: #1c2340;
+  background: var(--gold);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 6px 18px rgba(20, 30, 60, 0.35);
+  pointer-events: none;
+  animation: pop-in 0.2s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+@keyframes pop-in { from { transform: var(--pos) scale(0.2); } }
+
 /* ---------- touch ---------- */
 #stick {
   position: fixed;

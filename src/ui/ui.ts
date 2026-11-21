@@ -155,6 +155,27 @@ export class UI {
     this.onPanelClose?.();
   }
 
+  // ---------------------------------------------------------- fishing
+  private fishHintEl = $('#fish-hint');
+  private fishAlertEl = $('#fish-alert');
+
+  fishHint(text: string | null) {
+    this.fishHintEl.hidden = !text;
+    if (text && this.fishHintEl.textContent !== text) {
+      this.fishHintEl.textContent = text;
+      this.fishHintEl.classList.toggle('now', text.startsWith('NOW'));
+    }
+  }
+
+  fishAlert(at: THREE.Vector3 | null, camera: THREE.Camera) {
+    this.fishAlertEl.hidden = !at;
+    if (!at) return;
+    const v = at.clone().project(camera);
+    const pos = `translate(${Math.round(((v.x + 1) / 2) * window.innerWidth) - 23}px, ${Math.round(((1 - v.y) / 2) * window.innerHeight) - 46}px)`;
+    this.fishAlertEl.style.transform = pos;
+    this.fishAlertEl.style.setProperty('--pos', pos);
+  }
+
   // ---------------------------------------------------------- floating labels
   setLabels(items: Interactable[]) {
     const root = $('#labels');

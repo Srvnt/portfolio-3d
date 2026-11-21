@@ -11,6 +11,8 @@ export interface Content {
   contact: { intro: string; links: Link[] };
   sign: string[];
   secrets: string[];
+  /** Each fish in the river reveals one fact. Order matches the species (pike, perch, trout, salmon). */
+  fish: { name: string; fact: string }[];
 }
 
 /** All portfolio text lives in content.json — edit that file, not the code. */
