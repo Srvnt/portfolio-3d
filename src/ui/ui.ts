@@ -1,0 +1,186 @@
+import * as THREE from 'three';
+import type { Interactable, SectionId } from '../world/map';
+import type { Content } from '../content';
+
+const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
+const esc = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+function links(list: { label: string; url: string }[]) {
+  if (!list.length) return '';
+  return `<div class="links">${list
+    .map((l) => `<a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.label)}</a>`)
+    .join('')}</div>`;
+}
+
+function renderSection(id: SectionId, c: Content): string {
+  switch (id) {
+    case 'about':
+      return `<h2 id="panel-title">${esc(c.about.title)}</h2>
+        <p class="meta">${esc(c.profile.name)} · ${esc(c.profile.role)} · ${esc(c.profile.location)}</p>
+        ${c.about.paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}`;
+    case 'projects':
+      return `<h2 id="panel-title">Quest Board</h2><p class="meta">Completed quests — selected projects</p>
+        <div class="quests">${c.projects
+          .map((p) => `<article class="quest">
+            <h3>${esc(p.title)}</h3>
+            <p class="meta">${esc(p.year)} · ${esc(p.role)}</p>
+            <p>${esc(p.summary)}</p>
+            <ul class="tags">${p.tags.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+            ${links(p.links)}
+          </article>`)
+          .join('')}</div>`;
+    case 'skills': {
+      const groups = new Map<string, typeof c.skills>();
+      for (const s of c.skills) groups.set(s.category, [...(groups.get(s.category) ?? []), s]);
+      return `<h2 id="panel-title">Smithy</h2><p class="meta">Equipment — skills and tools</p>
+        ${[...groups]
+          .map(([cat, list]) => `<h3>${esc(cat)}</h3><ul class="skills">${list
+            .map((s) => `<li><span>${esc(s.name)}</span>
+              <span class="bar" role="img" aria-label="${s.level} of 5">${'<i class="on"></i>'.repeat(s.level)}${'<i></i>'.repeat(5 - s.level)}</span></li>`)
+            .join('')}</ul>`)
+          .join('')}`;
+    }
+    case 'experience':
+      return `<h2 id="panel-title">Library</h2><p class="meta">Chronicles — work experience</p>
+        <ol class="timeline">${c.experience
+          .map((e) => `<li><p class="meta">${esc(e.period)}</p><h3>${esc(e.title)} · ${esc(e.company)}</h3><p>${esc(e.summary)}</p></li>`)
+          .join('')}</ol>`;
+    case 'contact':
+      return `<h2 id="panel-title">Post Office</h2><p>${esc(c.contact.intro)}</p>${links(c.contact.links)}`;
+  }
+}
+
+export class UI {
+  private dialogEl = $('#dialog');
+  private dialogName = this.dialogEl.querySelector('.name') as HTMLElement;
+  private dialogText = this.dialogEl.querySelector('.text') as HTMLElement;
+  private dialogMore = this.dialogEl.querySelector('.more') as HTMLElement;
+  private panelWrap = $('#panel-wrap');
+  private panelContent = $('#panel .content');
+  private labels = new Map<string, HTMLElement>();
+  private lines: string[] = [];
+  private line = 0;
+  private shown = 0;
+  private onDialogDone: (() => void) | null = null;
+  onPanelClose: (() => void) | null = null;
+  private lastFocus: Element | null = null;
+
+  constructor(private content: Content) {
+    $('#title .title-name').textContent = content.profile.name;
+    $('#title .title-role').textContent = content.profile.role;
+    document.title = `${content.profile.name} — Portfolio`;
+    $('#panel .close').addEventListener('click', () => this.closePanel());
+    this.panelWrap.addEventListener('click', (e) => { if (e.target === this.panelWrap) this.closePanel(); });
+  }
+
+  // ---------------------------------------------------------- title
+  waitForStart(): Promise<void> {
+    const el = $('#title');
+    return new Promise((resolve) => {
+      const go = () => {
+        window.removeEventListener('keydown', go);
+        el.removeEventListener('pointerdown', go);
+        el.classList.add('gone');
+        setTimeout(() => el.remove(), 700);
+        resolve();
+      };
+      window.addEventListener('keydown', go);
+      el.addEventListener('pointerdown', go);
+    });
+  }
+
+  // ---------------------------------------------------------- dialog
+  get dialogOpen() { return !this.dialogEl.hidden; }
+
+  dialog(name: string, lines: string[], done: () => void) {
+    this.lines = lines;
+    this.line = 0;
+    this.shown = 0;
+    this.onDialogDone = done;
+    this.dialogName.textContent = name;
+    this.dialogEl.hidden = false;
+    this.renderLine();
+  }
+
+  /** Finish the current line, or go to the next one. */
+  advance() {
+    const full = this.lines[this.line];
+    if (this.shown < full.length) { this.shown = full.length; this.renderLine(); return; }
+    this.line++;
+    this.shown = 0;
+    if (this.line >= this.lines.length) { this.closeDialog(); return; }
+    this.renderLine();
+  }
+
+  closeDialog() {
+    this.dialogEl.hidden = true;
+    const cb = this.onDialogDone;
+    this.onDialogDone = null;
+    cb?.();
+  }
+
+  updateDialog(dt: number) {
+    if (!this.dialogOpen) return;
+    const full = this.lines[this.line];
+    if (this.shown < full.length) {
+      this.shown = Math.min(full.length, this.shown + dt * 45);
+      this.renderLine();
+    }
+  }
+
+  private renderLine() {
+    const full = this.lines[this.line];
+    this.dialogText.textContent = full.slice(0, Math.floor(this.shown));
+    this.dialogMore.style.visibility = this.shown >= full.length ? 'visible' : 'hidden';
+  }
+
+  // ---------------------------------------------------------- panel
+  get panelOpen() { return !this.panelWrap.hidden; }
+
+  openPanel(id: SectionId) {
+    this.lastFocus = document.activeElement;
+    this.panelContent.innerHTML = renderSection(id, this.content);
+    this.panelWrap.hidden = false;
+    ($('#panel') as HTMLElement).scrollTop = 0;
+    ($('#panel .close') as HTMLButtonElement).focus();
+  }
+
+  closePanel() {
+    if (!this.panelOpen) return;
+    this.panelWrap.hidden = true;
+    (this.lastFocus as HTMLElement | null)?.focus?.();
+    this.onPanelClose?.();
+  }
+
+  // ---------------------------------------------------------- floating labels
+  setLabels(items: Interactable[]) {
+    const root = $('#labels');
+    for (const it of items) {
+      const el = document.createElement('div');
+      el.className = `label label-${it.kind}`;
+      el.innerHTML = `<span class="t">${esc(it.label)}</span><span class="key">[E]</span>`;
+      root.appendChild(el);
+      this.labels.set(it.id, el);
+    }
+  }
+
+  updateLabels(items: Interactable[], camera: THREE.Camera, nearId: string | null, hidden: boolean) {
+    const v = new THREE.Vector3();
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    for (const it of items) {
+      const el = this.labels.get(it.id)!;
+      v.set(...it.labelPos).project(camera);
+      const near = it.id === nearId;
+      const visible = !hidden && v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1 && (it.kind === 'door' || near);
+      el.classList.toggle('show', visible);
+      el.classList.toggle('near', near);
+      if (!visible) continue;
+      const half = el.offsetWidth / 2 + 8;
+      const sx = Math.min(w - half, Math.max(half, ((v.x + 1) / 2) * w));
+      const sy = Math.max(el.offsetHeight + 8, ((1 - v.y) / 2) * h);
+      el.style.transform = `translate(${Math.round(sx)}px, ${Math.round(sy)}px) translate(-50%, -100%)`;
+    }
+  }
+}
