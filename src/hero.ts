@@ -167,11 +167,12 @@ export class Hero {
     this.sync();
   }
 
-  get x() { return this.body.position.x; }
-  get z() { return this.body.position.z; }
+  get x() { return this.body.interpolatedPosition.x; }
+  get z() { return this.body.interpolatedPosition.z; }
 
   private sync() {
-    this.group.position.set(this.body.position.x, this.body.position.y - RADIUS, this.body.position.z);
+    const p = this.body.interpolatedPosition;
+    this.group.position.set(p.x, p.y - RADIUS, p.z);
   }
 
   drive(input: { x: number; z: number; run: boolean }, dt: number) {
@@ -260,6 +261,8 @@ export class Hero {
     this.hp = this.maxHp;
     this.invuln = 1.5;
     this.body.position.set(x, RADIUS, z);
+    this.body.interpolatedPosition.set(x, RADIUS, z);
+    this.body.previousPosition.set(x, RADIUS, z);
     this.body.velocity.set(0, 0, 0);
   }
 

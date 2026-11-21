@@ -106,9 +106,18 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   window.addEventListener('resize', resize);
   resize();
 
+  const texel = (sc.right - sc.left) / sun.shadow.mapSize.x;
+  const lightDir = new THREE.Vector3(), lightRight = new THREE.Vector3(), lightUp = new THREE.Vector3(), snapped = new THREE.Vector3();
   function followSun(focus: THREE.Vector3) {
-    sun.target.position.copy(focus);
-    sun.position.copy(focus).add(sunOffset);
+    lightDir.copy(sunOffset).normalize();
+    lightRight.crossVectors(THREE.Object3D.DEFAULT_UP, lightDir).normalize();
+    lightUp.crossVectors(lightDir, lightRight);
+    const r = Math.round(focus.dot(lightRight) / texel) * texel;
+    const u = Math.round(focus.dot(lightUp) / texel) * texel;
+    const d = focus.dot(lightDir);
+    snapped.copy(lightRight).multiplyScalar(r).addScaledVector(lightUp, u).addScaledVector(lightDir, d);
+    sun.target.position.copy(snapped);
+    sun.position.copy(snapped).add(sunOffset);
   }
 
   return { renderer, scene, camera, composer, sun, hemi, bloom, sunOffset, followSun, lowEnd };

@@ -101,8 +101,9 @@ export class Physics {
   step(dt: number) {
     this.world.step(1 / 60, dt, 4);
     for (const { body, mesh } of this.linked) {
-      mesh.position.set(body.position.x, body.position.y, body.position.z);
-      mesh.quaternion.set(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
+      const p = body.interpolatedPosition, q = body.interpolatedQuaternion;
+      mesh.position.set(p.x, p.y, p.z);
+      mesh.quaternion.set(q.x, q.y, q.z, q.w);
       if (body.position.y < -5) {
         body.position.y = 6;
         body.velocity.setZero();
