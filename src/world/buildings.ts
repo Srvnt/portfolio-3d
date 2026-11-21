@@ -156,7 +156,7 @@ function mossTextures(seed: number, span: number, slope: number): { map: THREE.C
 }
 
 /** Soft shingle texture tinted per roof colour. */
-function shingleTexture(color: string): THREE.CanvasTexture {
+export function shingleTexture(color: string): THREE.CanvasTexture {
   const { canvas, ctx } = makeCanvas(128, 128);
   const base = new THREE.Color(color);
   const shade = (k: number) => `#${base.clone().multiplyScalar(k).getHexString()}`;
@@ -182,7 +182,7 @@ function shingleTexture(color: string): THREE.CanvasTexture {
 }
 
 /** Pitched roof with overhang (ridge along x) and gables. */
-function roofGeometry(w: number, d: number, y0: number, hr: number, o: number): THREE.BufferGeometry {
+export function roofGeometry(w: number, d: number, y0: number, hr: number, o: number): THREE.BufferGeometry {
   const x0 = -w / 2 - o, x1 = w / 2 + o;
   const zf = d / 2 + o, zb = -d / 2 - o;
   const ye = y0 - (o * hr) / (d / 2);

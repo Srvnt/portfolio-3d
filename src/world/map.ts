@@ -61,7 +61,7 @@ const CHESTS: [number, number][] = [[3, 3], [40, 33], [14, 33], [65, 6], [6, 53]
 export const SIGN: [number, number] = [19, 15];
 export const FOUNTAIN = { x: 22, z: 17.5 };
 /** The village gate (with the name) spans the south road just below the plaza. */
-export const GATE = { x: 22, z: 22.4, span: 4.6 };
+export const GATE = { x: 22, z: 22.4, span: 5.0 };
 
 export class WorldMap {
   readonly W = 72;

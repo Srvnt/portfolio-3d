@@ -6,6 +6,9 @@ import fontJson from 'three/examples/fonts/gentilis_bold.typeface.json';
 import { FOUNTAIN, GATE, Tile, WorldMap } from './map';
 import { Physics } from '../physics';
 import { canvasTexture, makeCanvas, standard, uniforms } from './shared';
+import { roofGeometry, shingleTexture } from './buildings';
+import { leafTexture } from './nature';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const shadowed = <T extends THREE.Object3D>(o: T) => {
   o.traverse((c) => { c.castShadow = true; c.receiveShadow = true; });
@@ -65,107 +68,172 @@ export function createPushables(map: WorldMap, physics: Physics): THREE.Group {
 }
 
 /**
- * The village gate over the south road: two stone pillars, a wooden arch and a signboard
- * with the name in gold. You walk underneath; only the pillars are solid. Lanterns on top
- * glow at night.
+ * The village gate over the south road: a timber gate on stone bases with its own little
+ * shingled roof (like the houses), a deep-blue signboard with the name in gold tilted toward
+ * the camera, pennant banners, hanging lanterns, ivy and flower boxes. Walk underneath;
+ * only the posts are solid.
  */
 export function createGate(text: string, physics: Physics) {
   const g = new THREE.Group();
   const { x: cx, z: cz, span } = GATE;
-  const stone = standard({ color: '#b9b2a2', flatShading: false, roughness: 0.9 });
-  const stoneDark = standard({ color: '#8f887a' });
-  const wood = standard({ color: '#7a4e2c' });
-  const woodDark = standard({ color: '#4e3019' });
-  const gold = new THREE.MeshStandardMaterial({ color: '#f0bf4a', metalness: 0.55, roughness: 0.3, emissive: '#3a2400' });
+  const stone = standard({ color: '#b5ad9c' });
+  const timber = standard({ color: '#7a4c2a', flatShading: false, roughness: 0.75 });
+  const timberDark = standard({ color: '#563219', flatShading: false });
+  const iron = new THREE.MeshStandardMaterial({ color: '#2e2a30', metalness: 0.5, roughness: 0.45 });
+  const gold = new THREE.MeshStandardMaterial({ color: '#ffd36a', metalness: 0.45, roughness: 0.28, emissive: '#8a5600', emissiveIntensity: 0.45 });
   const glow = new THREE.MeshStandardMaterial({ color: '#fff0c0', emissive: '#ffb84a', emissiveIntensity: 0.2, roughness: 0.3 });
-  const add = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number) => {
+  const add = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D = g) => {
     const mesh = new THREE.Mesh(geo, m);
     mesh.position.set(x, y, z);
-    g.add(mesh);
+    parent.add(mesh);
     return mesh;
   };
-  const H = 3.0; // pillar height
+  const POST_TOP = 3.6;
+  const BEAM_Y = 3.45;
+
   for (const side of [-1, 1]) {
     const x = side * span / 2;
-    add(new THREE.BoxGeometry(0.95, 0.35, 0.95), stoneDark, x, 0.17, 0);
-    // stacked stone drums for a hand-built look
-    for (let i = 0; i < 5; i++) {
-      const drum = add(new THREE.CylinderGeometry(0.33, 0.36, 0.5, 10), stone, x, 0.6 + i * 0.52, 0);
-      drum.rotation.y = i * 0.4;
-    }
-    add(new THREE.BoxGeometry(0.85, 0.22, 0.85), stoneDark, x, H + 0.05, 0);
-    // lantern on top
-    add(new THREE.CylinderGeometry(0.16, 0.13, 0.3, 6), glow, x, H + 0.33, 0);
-    add(new THREE.ConeGeometry(0.22, 0.2, 6), woodDark, x, H + 0.58, 0);
-    // hanging banner in the village colours
-    const banner = add(new THREE.PlaneGeometry(0.46, 1.3, 1, 6), new THREE.MeshStandardMaterial({ color: side < 0 ? '#3d66c4' : '#c4573a', side: THREE.DoubleSide, roughness: 0.8 }), x, H - 0.85, 0.37);
-    banner.userData.flag = false;
-    banner.userData.banner = true;
-    add(new THREE.BoxGeometry(0.56, 0.05, 0.05), woodDark, x, H - 0.18, 0.37);
-    const emblem = add(new THREE.CircleGeometry(0.13, 16), gold, x, H - 0.7, 0.38);
-    emblem.userData.bannerChild = true;
-    physics.cylinder(cx + x, cz, 0.45, 1.6);
+    // stone base with a chamfered cap
+    add(new THREE.BoxGeometry(0.78, 0.5, 0.78), stone, x, 0.25, 0);
+    add(new THREE.BoxGeometry(0.62, 0.1, 0.62), stone, x, 0.55, 0);
+    // square timber post with iron bands near the top and bottom
+    add(new THREE.BoxGeometry(0.36, POST_TOP - 0.5, 0.36), timber, x, 0.5 + (POST_TOP - 0.5) / 2, 0);
+    for (const y of [0.85, POST_TOP - 0.45]) add(new THREE.BoxGeometry(0.4, 0.07, 0.4), iron, x, y, 0);
+    // knee brace from post to beam
+    const brace = add(new THREE.BoxGeometry(0.12, 0.85, 0.16), timberDark, x - side * 0.34, BEAM_Y - 0.42, 0);
+    brace.rotation.z = side * 0.75;
+    physics.cylinder(cx + x, cz, 0.42, 1.6);
   }
-  // wooden arch: a thick curved beam between the pillar tops
-  const arc = new THREE.QuadraticBezierCurve3(
-    new THREE.Vector3(-span / 2, H + 0.1, 0), new THREE.Vector3(0, H + 1.9, 0), new THREE.Vector3(span / 2, H + 0.1, 0));
-  add(new THREE.TubeGeometry(arc, 24, 0.15, 8, false), wood, 0, 0, 0);
-  // straight cross beam with pegs
-  add(new THREE.BoxGeometry(span + 0.9, 0.24, 0.3), wood, 0, H - 0.05, 0);
-  for (const side of [-1, 1]) add(new THREE.CylinderGeometry(0.06, 0.06, 0.36, 6), woodDark, side * (span / 2 + 0.3), H - 0.05, 0).rotation.x = Math.PI / 2;
+  // tie beam with protruding, carved ends
+  add(new THREE.BoxGeometry(span + 1.3, 0.3, 0.42), timber, 0, BEAM_Y, 0);
+  for (const side of [-1, 1]) {
+    const end = add(new THREE.CylinderGeometry(0.2, 0.2, 0.42, 12, 1, false, 0, Math.PI), timber, side * (span / 2 + 0.65), BEAM_Y, 0);
+    end.rotation.set(Math.PI / 2, 0, side > 0 ? -Math.PI / 2 : Math.PI / 2);
+  }
 
-  // signboard resting on the beam, under the arch
-  const boardW = span + 0.4, boardH = 0.72;
-  const board = new THREE.Shape();
-  board.moveTo(-boardW / 2, 0);
-  board.lineTo(boardW / 2, 0);
-  board.lineTo(boardW / 2, boardH * 0.8);
-  board.quadraticCurveTo(0, boardH * 1.25, -boardW / 2, boardH * 0.8);
-  board.closePath();
-  const boardGeo = new THREE.ExtrudeGeometry(board, { depth: 0.1, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.03, bevelSegments: 2 });
-  boardGeo.translate(0, 0, -0.05);
-  add(boardGeo, woodDark, 0, H + 0.08, 0.02);
-  // gold trim along the board edge
-  const trim = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(
-    board.getPoints(24).map((p) => new THREE.Vector3(p.x * 0.97, p.y * 0.94 + 0.02, 0))), 48, 0.018, 4, true);
-  add(trim, gold, 0, H + 0.08, 0.1);
+  // little gable roof, shingled like the houses
+  const roof = new THREE.Mesh(roofGeometry(span + 0.7, 0.6, POST_TOP + 0.02, 0.7, 0.3), [
+    new THREE.MeshStandardMaterial({ map: shingleTexture('#c4573a'), roughness: 0.8, flatShading: true }),
+    timberDark,
+  ]);
+  g.add(roof);
+  const ridge = add(new THREE.CylinderGeometry(0.08, 0.08, span + 1.4, 8), standard({ color: '#8a3424' }), 0, POST_TOP + 0.74, 0);
+  ridge.rotation.z = Math.PI / 2;
+  for (const side of [-1, 1]) add(new THREE.SphereGeometry(0.11, 12, 8), gold, side * (span / 2 + 0.7), POST_TOP + 0.76, 0);
 
-  // the name, in gold, fitted to the board
+  // signboard mounted on the front of the roof like a crest, angled up toward the camera
+  // (the camera looks down from the south, so a hanging sign would hide under the roof)
+  const sign = new THREE.Group();
+  sign.position.set(0, POST_TOP + 0.98, 0.78);
+  sign.rotation.x = -0.72;
+  g.add(sign);
+  const boardW = span - 0.55, boardH = 0.92;
+  const shape = new THREE.Shape();
+  const r = 0.16;
+  shape.moveTo(-boardW / 2 + r, -boardH);
+  shape.lineTo(boardW / 2 - r, -boardH);
+  shape.quadraticCurveTo(boardW / 2, -boardH, boardW / 2, -boardH + r);
+  shape.lineTo(boardW / 2, -r);
+  shape.quadraticCurveTo(boardW / 2, 0, boardW / 2 - r, 0);
+  shape.lineTo(-boardW / 2 + r, 0);
+  shape.quadraticCurveTo(-boardW / 2, 0, -boardW / 2, -r);
+  shape.lineTo(-boardW / 2, -boardH + r);
+  shape.quadraticCurveTo(-boardW / 2, -boardH, -boardW / 2 + r, -boardH);
+  const boardGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.04, bevelSegments: 3 });
+  boardGeo.translate(0, 0, -0.04);
+  add(boardGeo, standard({ color: '#22357a', flatShading: false, roughness: 0.55 }), 0, 0, 0, sign);
+  // gold frame
+  const frame = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(shape.getPoints(10).map((p) => new THREE.Vector3(p.x * 0.95, (p.y + boardH / 2) * 0.88 - boardH / 2, 0))), 64, 0.022, 5, true);
+  add(frame, gold, 0, 0, 0.075, sign);
+  // the name
   const font = new FontLoader().parse(fontJson as never);
-  const textGeo = new TextGeometry(text, { font, size: 0.42, depth: 0.05, curveSegments: 6, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 2 });
+  const textGeo = new TextGeometry(text, { font, size: 0.4, depth: 0.04, curveSegments: 8, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2 });
   textGeo.computeBoundingBox();
   const bb = textGeo.boundingBox!;
   const tw = bb.max.x - bb.min.x, th = bb.max.y - bb.min.y;
-  const fit = Math.min(1, (boardW - 0.55) / tw);
+  const fit = Math.min(1, (boardW - 0.6) / tw);
   textGeo.translate(-(bb.min.x + tw / 2), -(bb.min.y + th / 2), 0);
   textGeo.scale(fit, fit, 1);
-  add(textGeo, gold, 0, H + 0.08 + boardH * 0.46, 0.09);
-
-  // ivy climbing the pillars
-  const ivy = standard({ color: '#3f8a3a', flatShading: true });
-  for (const side of [-1, 1])
-    for (let i = 0; i < 14; i++) {
-      const a = side * 0.4 + (Math.random() - 0.5) * 1.6, y = 0.4 + Math.random() * 2.2 * (1 - i / 22);
-      const leaf = add(new THREE.IcosahedronGeometry(0.08 + Math.random() * 0.05, 0), ivy, side * span / 2 + Math.sin(a) * 0.36, y, Math.cos(a) * 0.36);
-      leaf.scale.y = 0.6;
-    }
-  // flower pots at the pillar bases
+  add(textGeo, gold, 0, -boardH / 2, 0.07, sign);
+  // little stars either side of the name
   for (const side of [-1, 1]) {
-    const px = side * (span / 2 + 0.62);
-    add(new THREE.CylinderGeometry(0.2, 0.15, 0.3, 10), standard({ color: '#b5653a' }), px, 0.15, 0.25);
-    for (let k = 0; k < 5; k++)
-      add(new THREE.IcosahedronGeometry(0.07, 0), standard({ color: ['#ff7aa8', '#ffe066', '#ffffff'][k % 3] }), px + (Math.random() - 0.5) * 0.22, 0.36, 0.25 + (Math.random() - 0.5) * 0.22);
+    const star = add(new THREE.OctahedronGeometry(0.07, 0), gold, side * (boardW / 2 - 0.22), -boardH / 2, 0.08, sign);
+    star.scale.z = 0.4;
   }
+  // iron brackets holding the crest to the roof
+  for (const side of [-1, 1]) add(new THREE.BoxGeometry(0.06, 0.06, 0.5), iron, side * (boardW / 2 - 0.35), -boardH + 0.05, -0.25, sign);
+
+  // hanging lanterns at the beam ends
+  for (const side of [-1, 1]) {
+    const lx = side * (span / 2 + 0.55);
+    add(new THREE.CylinderGeometry(0.012, 0.012, 0.32, 4), iron, lx, BEAM_Y - 0.3, 0.05);
+    add(new THREE.ConeGeometry(0.16, 0.12, 6), iron, lx, BEAM_Y - 0.48, 0.05);
+    add(new THREE.CylinderGeometry(0.11, 0.09, 0.26, 6), glow, lx, BEAM_Y - 0.66, 0.05);
+    add(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 6), iron, lx, BEAM_Y - 0.8, 0.05);
+  }
+
+  // pennant banners on the front of the posts
+  const pennant = new THREE.Shape();
+  pennant.moveTo(-0.17, 0);
+  pennant.lineTo(0.17, 0);
+  pennant.lineTo(0.17, -1.15);
+  pennant.lineTo(0, -0.95);
+  pennant.lineTo(-0.17, -1.15);
+  pennant.closePath();
+  const pennantGeo = new THREE.ShapeGeometry(pennant);
+  const banners: THREE.Object3D[] = [];
+  for (const side of [-1, 1]) {
+    const b = new THREE.Group();
+    b.position.set(side * span / 2, BEAM_Y - 0.5, 0.2);
+    add(pennantGeo, new THREE.MeshStandardMaterial({ color: side < 0 ? '#3d66c4' : '#c4473a', side: THREE.DoubleSide, roughness: 0.85 }), 0, 0, 0, b);
+    add(new THREE.CircleGeometry(0.09, 16), gold, 0, -0.42, 0.005, b);
+    add(new THREE.BoxGeometry(0.42, 0.04, 0.04), iron, 0, 0.01, 0, b);
+    g.add(b);
+    banners.push(b);
+  }
+
+  // ivy: leaf cards spiralling up each post, thicker near the ground
+  const leafMat = new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8, vertexColors: true });
+  const leaves: THREE.BufferGeometry[] = [];
+  const dark = new THREE.Color('#1f5226'), light = new THREE.Color('#7cbc4c'), c = new THREE.Color();
+  for (const side of [-1, 1])
+    for (let i = 0; i < 46; i++) {
+      const k = i / 46;
+      const y = 0.55 + Math.pow(k, 1.4) * 2.6;
+      const a = k * 9 + side + Math.random() * 0.8;
+      const pos = new THREE.Vector3(side * span / 2 + Math.cos(a) * 0.24, y, Math.sin(a) * 0.24);
+      const out = new THREE.Vector3(Math.cos(a), 0.4, Math.sin(a)).normalize();
+      const leaf = new THREE.PlaneGeometry(0.34 - k * 0.12, 0.34 - k * 0.12);
+      leaf.applyMatrix4(new THREE.Matrix4().lookAt(out, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)).multiply(new THREE.Matrix4().makeRotationZ(Math.random() * 6.28)).setPosition(pos));
+      c.copy(dark).lerp(light, 0.3 + Math.random() * 0.6);
+      const n = new Float32Array(12), col = new Float32Array(12);
+      for (let v = 0; v < 4; v++) { n.set([out.x, out.y, out.z], v * 3); col.set([c.r, c.g, c.b], v * 3); }
+      leaf.setAttribute('normal', new THREE.BufferAttribute(n, 3));
+      leaf.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      leaves.push(leaf);
+    }
+  g.add(new THREE.Mesh(mergeGeometries(leaves)!, leafMat));
+
+  // flower boxes in front of the bases
+  const flowerCols = ['#ff7aa8', '#ffe066', '#ffffff', '#b99cff'];
+  for (const side of [-1, 1]) {
+    const fx = side * span / 2;
+    add(new THREE.BoxGeometry(0.7, 0.22, 0.26), timberDark, fx, 0.11, 0.55);
+    for (let k = 0; k < 9; k++) {
+      const f = add(new THREE.IcosahedronGeometry(0.06 + Math.random() * 0.03, 1), standard({ color: flowerCols[k % 4], flatShading: false }), fx + (Math.random() - 0.5) * 0.6, 0.28 + Math.random() * 0.08, 0.55 + (Math.random() - 0.5) * 0.16);
+      f.scale.y = 0.8;
+    }
+  }
+
   g.traverse((o) => { o.castShadow = true; o.receiveShadow = true; });
   g.position.set(cx, 0, cz);
   return {
     group: g,
     setNight(n: number, t: number) { glow.emissiveIntensity = 0.2 + n * 3.4 * (1 + Math.sin(t * 9) * 0.03); },
-    /** Banners sway in the wind. */
+    /** Banners and the sign sway in the wind. */
     animate(t: number, wind: number) {
-      g.children.forEach((o) => {
-        if (o.userData.banner) o.rotation.x = Math.sin(t * (1.6 + wind * 3) + o.position.x) * (0.06 + wind * 0.25) - wind * 0.15;
-      });
+      banners.forEach((b, i) => { b.rotation.x = Math.sin(t * (1.5 + wind * 3) + i) * (0.05 + wind * 0.22) - wind * 0.12; });
+      sign.rotation.z = Math.sin(t * (1.1 + wind * 2)) * (0.006 + wind * 0.03);
     },
   };
 }
