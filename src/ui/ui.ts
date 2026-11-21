@@ -147,6 +147,7 @@ export class UI {
     this.lastFocus = document.activeElement;
     this.panelContent.innerHTML = renderSection(id, this.content);
     this.panelWrap.hidden = false;
+    document.body.classList.add('panel-open');
     ($('#panel') as HTMLElement).scrollTop = 0;
     ($('#panel .close') as HTMLButtonElement).focus();
   }
@@ -154,6 +155,7 @@ export class UI {
   closePanel() {
     if (!this.panelOpen) return;
     this.panelWrap.hidden = true;
+    document.body.classList.remove('panel-open');
     (this.lastFocus as HTMLElement | null)?.focus?.();
     this.onPanelClose?.();
   }

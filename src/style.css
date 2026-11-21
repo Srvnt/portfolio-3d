@@ -101,6 +101,7 @@ html, body {
 }
 
 #dialog {
+  z-index: 20;
   position: fixed;
   left: 50%;
   bottom: 32px;
@@ -129,6 +130,7 @@ html, body {
 #dialog .more { position: absolute; right: 18px; bottom: 10px; font-size: 12px; color: var(--gold); animation: bob 0.7s ease-in-out infinite; }
 
 #panel-wrap {
+  z-index: 30;
   position: fixed;
   inset: 0;
   display: grid;
@@ -271,6 +273,7 @@ html, body {
 .timeline h3 { margin: 0; }
 
 .title-screen {
+  z-index: 40;
   position: fixed;
   inset: 0;
   display: grid;
@@ -623,3 +626,10 @@ body.touch .hint { display: none; }
   #panel { padding: 28px 22px 28px; font-size: 16px; }
   #panel h2 { font-size: 24px; }
 }
+
+body.panel-open .hud,
+body.panel-open .minimap,
+body.panel-open .weather,
+body.panel-open #labels,
+body.panel-open .hint,
+body.panel-open .fish-hint { visibility: hidden; }
