@@ -14,10 +14,10 @@
   },
   "projects": [
     {
-      "title": "Project One",
+      "title": "Three.js Portfolio",
       "year": "2026",
-      "role": "Lead developer",
-      "summary": "Placeholder: the problem, what you built, and the result in one or two sentences.",
+      "role": "Lead developer & Product owner",
+      "summary": "Had an idea for portfolio site and really needed to refresh my old one",
       "tags": [
         "TypeScript",
         "Three.js"
@@ -30,10 +30,10 @@
       ]
     },
     {
-      "title": "Project Two",
+      "title": "Claude skills and plugins for development workflow",
       "year": "2025",
       "role": "Designer & developer",
-      "summary": "Placeholder: measurable impact reads best, e.g. “cut load time by 40%”.",
+      "summary": "Personal need for simplified CI/CD pipelines and AI-enhanced coding exprience",
       "tags": [
         "React",
         "Node"
@@ -46,10 +46,10 @@
       ]
     },
     {
-      "title": "Project Three",
+      "title": "Github Actions",
       "year": "2024",
       "role": "Solo",
-      "summary": "Placeholder: a side project that shows curiosity.",
+      "summary": "Further enhance my development exprience and automate most of the mandatory detailed work",
       "tags": [
         "WebGL"
       ],
@@ -98,9 +98,67 @@
       ]
     },
     {
-      "name": "SQL",
-      "icon": "🗄"
+  "name": "Communications",
+  "icon": "💬",
+  "children": [
+    {
+      "name": "Teams",
+      "icon": "👥"
+    },
+    {
+      "name": "Slack",
+      "icon": "#️⃣"
     }
+  ]
+},
+    {
+      "name": "Cloud platforms",
+      "icon": "☁️",
+      "children": [
+        {
+          "name": "Azure",
+          "icon": "🔷"
+        },
+        {
+          "name": "AWS",
+          "icon": "🟧"
+        }
+      ]
+    },
+    {
+  "name": "Databases",
+  "icon": "🛢️",
+  "children": [
+    {
+      "name": "SQL",
+      "icon": "🗄️",
+      "children": [
+        {
+          "name": "Postgres",
+          "icon": "🐘"
+        },
+        {
+          "name": "MariaDB",
+          "icon": "🦭"
+        }
+      ]
+    },
+    {
+      "name": "NoSQL",
+      "icon": "🗄️",
+      "children": [
+        {
+          "name": "MongoDB",
+          "icon": "🍃"
+        },
+        {
+          "name": "CosmosDB",
+          "icon": "🪐"
+        }
+      ]
+    }
+  ]
+}
   ],
   "experience": [
     {
