@@ -68,7 +68,8 @@ export function createPushables(map: WorldMap, physics: Physics): THREE.Group {
 export function createLetters(text: string, physics: Physics): THREE.Group {
   const group = new THREE.Group();
   const font = new FontLoader().parse(fontJson as never);
-  const mat = new THREE.MeshStandardMaterial({ color: '#fff3d6', roughness: 0.45 });
+  // warm gold so the name stands out against the pale cobblestones
+  const mat = new THREE.MeshStandardMaterial({ color: '#e8a93a', roughness: 0.35, metalness: 0.35 });
   const size = 1.35;
   const gap = 0.14;
   const geos = [...text].map((ch) => {
