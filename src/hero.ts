@@ -26,6 +26,18 @@ export class Hero {
   cast = 1;
   private rod = new THREE.Group();
   private rodTipObj = new THREE.Object3D();
+  // sword + combo state
+  private sword = new THREE.Group();
+  private attackT = -1; // -1 = idle, else 0..1 through the current swing
+  private combo = 0;
+  private queued = false;
+  private hitDone = false;
+  private lastSwingEnd = -10;
+  private clock = 0;
+  /** Fired once per swing at the moment of impact (world-space centre of the hit, facing direction, combo step). */
+  onSlash: (center: THREE.Vector3, forward: THREE.Vector3, combo: number) => void = () => {};
+  /** Current swing for the trail effect; null when idle. */
+  swing: { combo: number; k: number; yaw: number } | null = null;
 
   constructor(x: number, z: number, physics: Physics) {
     const skin = mat('#f2c49b');
@@ -125,6 +137,31 @@ export class Hero {
     this.rod.visible = false;
     this.arms[0].add(this.rod);
 
+    // sword in the right hand: hangs at the side when walking, extends the arm when swinging
+    const steel = new THREE.MeshStandardMaterial({ color: '#e6ecf4', metalness: 0.45, roughness: 0.22, emissive: '#1a2230' });
+    const gold = mat('#e8b84a', { metalness: 0.6, roughness: 0.3 });
+    const blade = new THREE.Group();
+    const bladeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.66, 0.014), steel);
+    bladeMesh.position.y = 0.43;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.039, 0.12, 4), steel);
+    tip.rotation.y = Math.PI / 4;
+    tip.scale.z = 0.25;
+    tip.position.y = 0.82;
+    const fuller = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.5, 0.016), mat('#9aa6b4', { metalness: 0.5, roughness: 0.3 }));
+    fuller.position.y = 0.4;
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.045, 0.05), gold);
+    guard.position.y = 0.08;
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.15, 8), mat('#5a3420'));
+    grip.position.y = -0.01;
+    const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), gold);
+    pommel.position.y = -0.1;
+    blade.add(bladeMesh, tip, fuller, guard, grip, pommel);
+    blade.traverse((o) => (o.castShadow = true));
+    blade.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0.3).normalize());
+    this.sword.add(blade);
+    this.sword.position.set(0, -0.32, 0);
+    this.arms[0].add(this.sword);
+
     // physics capsule approximated by a sphere
     this.body = new CANNON.Body({
       mass: 6,
@@ -191,6 +228,12 @@ export class Hero {
     this.model.position.y = bob * 0.5;
     this.scarfTail.rotation.x = 0.3 + moving * 0.6 + Math.sin(t * 8) * 0.12 * moving;
     this.rod.visible = this.fishing;
+    this.sword.visible = !this.fishing;
+    this.clock = t;
+    this.torso.rotation.y = 0;
+    this.arms[0].rotation.z = -0.12;
+    this.swing = null;
+    if (this.attackT >= 0) this.animateAttack(dt);
     if (this.fishing) {
       // rod raised; during a cast it swings back over the shoulder and snaps forward
       const swing = this.cast < 1 ? Math.sin(this.cast * Math.PI) * 1.4 : 0;
@@ -199,6 +242,64 @@ export class Hero {
       this.legs[0].rotation.x = this.legs[1].rotation.x = 0;
     }
     this.model.rotation.y = this.yaw;
+  }
+
+  get attacking() { return this.attackT >= 0; }
+
+  /** Start a swing, or queue the next combo step if pressed late in the current one. */
+  attack() {
+    if (this.fishing) return;
+    if (this.attackT >= 0) {
+      if (this.attackT > 0.35) this.queued = true;
+      return;
+    }
+    this.combo = this.clock - this.lastSwingEnd < 0.35 ? (this.combo + 1) % 3 : 0;
+    this.beginSwing();
+  }
+
+  private beginSwing() {
+    this.attackT = 0;
+    this.hitDone = false;
+    this.queued = false;
+  }
+
+  private animateAttack(dt: number) {
+    const dur = [0.3, 0.3, 0.44][this.combo];
+    this.attackT += dt / dur;
+    const k = Math.min(1, this.attackT);
+    const p = THREE.MathUtils.smoothstep(k, 0.08, 0.62); // swing progress after a short wind-up
+    const arm = this.arms[0];
+    if (this.combo === 2) {
+      // overhead chop with a little hop
+      arm.rotation.x = -3.1 + p * 2.7;
+      this.torso.rotation.x = -0.15 + p * 0.45;
+      this.model.position.y += Math.sin(k * Math.PI) * 0.22;
+    } else {
+      // wide horizontal slash: right→left, then backhand left→right
+      const from = this.combo === 0 ? -1.15 : 1.0;
+      const to = this.combo === 0 ? 1.2 : -1.25;
+      this.torso.rotation.y = from + (to - from) * p;
+      arm.rotation.x = -1.5;
+      arm.rotation.z = this.combo === 0 ? -0.1 : 0.2;
+    }
+    this.arms[1].rotation.x = -0.5;
+    this.legs[0].rotation.x = 0.35;
+    this.legs[1].rotation.x = -0.25;
+    this.swing = { combo: this.combo, k, yaw: this.yaw };
+    if (!this.hitDone && k >= 0.42) {
+      this.hitDone = true;
+      const fwd = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+      this.onSlash(new THREE.Vector3(this.x, 0.5, this.z).addScaledVector(fwd, 0.85), fwd, this.combo);
+    }
+    if (this.attackT >= 1) {
+      if (this.queued) {
+        this.combo = (this.combo + 1) % 3;
+        this.beginSwing();
+      } else {
+        this.attackT = -1;
+        this.lastSwingEnd = this.clock;
+      }
+    }
   }
 
   /** World position of the rod tip (where the line starts). */

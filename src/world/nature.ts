@@ -371,6 +371,63 @@ function createFlowers(map: WorldMap): THREE.Group {
   return g;
 }
 
+// ------------------------------------------------------------------ sword interaction
+
+const REGROW_AFTER = 25;
+const GROW_TIME = 0.9;
+const bushes = { mesh: null as THREE.InstancedMesh | null, list: [] as Prop[], base: [] as THREE.Matrix4[], cutAt: [] as number[], growAt: [] as number[] };
+let trees: Prop[] = [];
+
+/** Cut down every standing bush within r of the hit. Returns the props that were cut. */
+export function cutBushes(center: THREE.Vector3, r: number, now: number): Prop[] {
+  const out: Prop[] = [];
+  const m = bushes.mesh;
+  if (!m) return out;
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  bushes.list.forEach((p, i) => {
+    if (bushes.cutAt[i] >= 0 || Math.hypot(p.x - center.x, p.z - center.z) > r) return;
+    bushes.cutAt[i] = now;
+    m.setMatrixAt(i, zero);
+    out.push(p);
+  });
+  if (out.length) m.instanceMatrix.needsUpdate = true;
+  return out;
+}
+
+/** Grow cut bushes back. Returns bushes that just started regrowing (they become solid again). */
+export function regrowBushes(now: number, canRegrow: (p: Prop) => boolean): Prop[] {
+  const m = bushes.mesh;
+  const started: Prop[] = [];
+  if (!m) return started;
+  let dirty = false;
+  const s = new THREE.Vector3(), q = new THREE.Quaternion(), pos = new THREE.Vector3();
+  bushes.list.forEach((p, i) => {
+    if (bushes.cutAt[i] < 0) return;
+    if (bushes.growAt[i] < 0) {
+      if (now - bushes.cutAt[i] < REGROW_AFTER) return;
+      if (!canRegrow(p)) return; // someone is standing there; try again next frame
+      bushes.growAt[i] = now;
+      started.push(p);
+    }
+    const k = Math.min(1, (now - bushes.growAt[i]) / GROW_TIME);
+    const e = 1 - Math.pow(1 - k, 3) + Math.sin(k * Math.PI) * 0.12; // ease out with a little bounce
+    bushes.base[i].decompose(pos, q, s);
+    m.setMatrixAt(i, new THREE.Matrix4().compose(pos, q, s.multiplyScalar(Math.max(0.001, e))));
+    dirty = true;
+    if (k >= 1) {
+      m.setMatrixAt(i, bushes.base[i]);
+      bushes.cutAt[i] = bushes.growAt[i] = -1;
+    }
+  });
+  if (dirty) m.instanceMatrix.needsUpdate = true;
+  return started;
+}
+
+/** Village trees within r of a point (for leaf showers). */
+export function treesNear(center: THREE.Vector3, r: number): Prop[] {
+  return trees.filter((p) => Math.hypot(p.x - center.x, p.z - center.z) < r);
+}
+
 export function createNature(map: WorldMap, lowEnd = false): THREE.Group {
   const group = new THREE.Group();
   const leafTex = leafTexture();
@@ -404,10 +461,15 @@ export function createNature(map: WorldMap, lowEnd = false): THREE.Group {
     blobs: [{ r: 0.58, x: 0, y: 0.58, z: 0 }, { r: 0.45, x: 0.46, y: 0.42, z: 0.12 }, { r: 0.42, x: -0.44, y: 0.4, z: 0.06 }],
   };
   const bushMat = foliageMaterial({ map: leafTex, amp: 0.06, minY: 0.12, flutter: 0.025, twoSided: true });
-  group.add(...placeAll(
-    [[crownCards(bush, lowEnd ? 64 : bush.cards, 33), bushMat]],
-    map.props.filter((p) => p.kind === 'bush'), map, [0.95, 1.3],
-  ));
+  const bushList = map.props.filter((p) => p.kind === 'bush');
+  const [bushMesh] = placeAll([[crownCards(bush, lowEnd ? 64 : bush.cards, 33), bushMat]], bushList, map, [0.95, 1.3]);
+  group.add(bushMesh);
+  bushes.mesh = bushMesh;
+  bushes.list = bushList;
+  bushes.base = bushList.map((_, i) => { const m = new THREE.Matrix4(); bushMesh.getMatrixAt(i, m); return m; });
+  bushes.cutAt = bushList.map(() => -1);
+  bushes.growAt = bushList.map(() => -1);
+  trees = map.props.filter((p) => p.kind === 'tree' && p.inside);
 
   group.add(...placeAll([[rockGeometry(), standard({ vertexColors: true })]], map.props.filter((p) => p.kind === 'rock'), map, [0.7, 1.2]));
   group.add(createFlowers(map));

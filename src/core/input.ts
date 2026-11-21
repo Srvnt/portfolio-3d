@@ -2,7 +2,12 @@ const MOVE_KEYS = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD',
   'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
 ]);
+/** Advance dialogs / hook fish. */
 export const INTERACT_KEYS = new Set(['KeyE', 'Space', 'Enter']);
+/** Talk, open doors, cast (while walking around). */
+export const USE_KEYS = new Set(['KeyE', 'Enter']);
+/** Sword swing (while walking around). 'Attack' is pushed by mouse clicks and the touch button. */
+export const ATTACK_KEYS = new Set(['Space', 'KeyJ', 'Attack']);
 
 /** Keyboard state: held keys for movement, a queue of fresh presses for actions. */
 export class Input {

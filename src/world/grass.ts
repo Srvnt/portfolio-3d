@@ -58,8 +58,9 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uniforms.uTime;
     shader.uniforms.uHero = uniforms.uHero;
+    shader.uniforms.uHit = uniforms.uHit;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime; uniform vec2 uHero;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime; uniform vec2 uHero; uniform vec3 uHit;')
       .replace(
         '#include <project_vertex>',
         `vec4 mvPosition = vec4(transformed, 1.0);
@@ -72,8 +73,11 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
         vec2 away = ip - uHero;
         float dist = length(away);
         float push = smoothstep(1.0, 0.15, dist);
-        mvPosition.xz += (wind + normalize(away + 1e-4) * push * 0.38) * hk;
-        mvPosition.y -= push * 0.22 * hk;
+        // sword swipe: a wider ring of grass flattens outward, springing back as uHit.z decays
+        vec2 fromHit = ip - uHit.xy;
+        float slash = smoothstep(1.6, 0.2, length(fromHit)) * uHit.z;
+        mvPosition.xz += (wind + normalize(away + 1e-4) * push * 0.38 + normalize(fromHit + 1e-4) * slash * 0.45) * hk;
+        mvPosition.y -= (push * 0.22 + slash * 0.2) * hk;
         mvPosition = modelViewMatrix * mvPosition;
         gl_Position = projectionMatrix * mvPosition;`,
       );

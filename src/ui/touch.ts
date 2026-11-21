@@ -43,6 +43,12 @@ export function setupTouch(input: Input, canvas: HTMLCanvasElement) {
   canvas.addEventListener('pointerup', end);
   canvas.addEventListener('pointercancel', end);
 
+  const attack = document.getElementById('attack') as HTMLButtonElement;
+  attack.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    input.press('Attack');
+  });
+
   action.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     input.press('KeyE');

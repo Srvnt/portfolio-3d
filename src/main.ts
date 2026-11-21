@@ -5,17 +5,17 @@ import { createRenderer } from './render/setup';
 import { createTerrain } from './world/terrain';
 import { createWater } from './world/water';
 import { createGrass } from './world/grass';
-import { createNature } from './world/nature';
+import { createNature, cutBushes, regrowBushes, treesNear } from './world/nature';
 import { createGroundDetails } from './world/decals';
 import { animateFlags, createBuilding } from './world/buildings';
 import { Chest, createBridges, createFountain, createLetters, createPushables, createSign } from './world/props';
 import { School, SPECIES } from './world/fish';
 import { Fishing } from './fishing';
-import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples } from './fx/particles';
+import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples, Swoosh } from './fx/particles';
 import { uniforms } from './world/shared';
 import { Physics } from './physics';
 import { Hero } from './hero';
-import { Input, INTERACT_KEYS } from './core/input';
+import { ATTACK_KEYS, Input, INTERACT_KEYS, USE_KEYS } from './core/input';
 import { setupTouch } from './ui/touch';
 import { UI } from './ui/ui';
 import { content } from './content';
@@ -79,6 +79,32 @@ async function init() {
       splash.emit(p.clone(), new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.8 + Math.random() * 0.6, (Math.random() - 0.5) * 0.8), 0.45, 0.1, 1.2);
   };
   scene.add(school.group, splash.group, ripples.group);
+
+  // sword: trail, leaf bursts, knock-back, cutting bushes
+  const swoosh = new Swoosh();
+  const leafBurst = new Puffs(80, '#6fbf4a', 0.95, 5);
+  scene.add(swoosh.group, leafBurst.group);
+  let shake = 0;
+  const burst = (x: number, y: number, z: number, n: number, spread = 2.4) => {
+    for (let i = 0; i < n; i++)
+      leafBurst.emit(
+        new THREE.Vector3(x + (Math.random() - 0.5) * 0.6, y + Math.random() * 0.4, z + (Math.random() - 0.5) * 0.6),
+        new THREE.Vector3((Math.random() - 0.5) * spread, 1.2 + Math.random() * 2, (Math.random() - 0.5) * spread),
+        1.3 + Math.random() * 0.6, 0.28 + Math.random() * 0.2, 0,
+      );
+  };
+  hero.onSlash = (c, fwd, combo) => {
+    const r = combo === 2 ? 1.45 : 1.2;
+    const knocked = physics.impulseNear(c, r, fwd, combo === 2 ? 4.5 : 3.2);
+    const cut = cutBushes(c, r * 0.85, clock.elapsedTime);
+    for (const p of cut) { physics.setPropSolid(p, false); burst(p.x, 0.35, p.z, 16); }
+    for (const tr of treesNear(c, 1.4)) burst(tr.x, 2.1, tr.z, 9, 1.2);
+    uniforms.uHit.value.set(c.x, c.z, 1);
+    // small lunge into the swing
+    hero.body.velocity.x += fwd.x * 2.2;
+    hero.body.velocity.z += fwd.z * 2.2;
+    if (knocked || cut.length) shake = combo === 2 ? 0.16 : 0.1;
+  };
   const fishing = new Fishing(scene, hero, school, splash, ripples);
   const caughtFacts = new Set<number>();
   // a floating "Fish here" prompt that follows the hero along any riverbank
@@ -95,6 +121,7 @@ async function init() {
   ui.setLabels(labelled);
   ui.onPanelClose = () => { state = 'play'; input.allowDefaults = false; };
   setupTouch(input, canvas);
+  canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 0) input.press('Attack'); });
 
   startText.textContent = matchMedia('(pointer: coarse)').matches ? 'Tap to begin' : 'Press any key to begin';
   let introT = 0;
@@ -174,8 +201,11 @@ async function init() {
     const near = state === 'play' ? nearest() : null;
 
     if (state === 'play') {
-      hero.drive(input.axis(), dt);
-      if (near && presses.some((k) => INTERACT_KEYS.has(k))) interact(near);
+      const ax = input.axis();
+      // you can still steer while swinging, just slowly
+      hero.drive(hero.attacking ? { x: ax.x * 0.3, z: ax.z * 0.3, run: false } : ax, dt);
+      if (presses.some((k) => ATTACK_KEYS.has(k))) hero.attack();
+      else if (near && presses.some((k) => USE_KEYS.has(k))) interact(near);
     } else {
       hero.drive({ x: 0, z: 0, run: false }, dt);
       if (state === 'dialog') {
@@ -217,10 +247,14 @@ async function init() {
     }
 
     physics.step(dt);
+    uniforms.uHit.value.z *= Math.exp(-dt * 3);
+    for (const p of regrowBushes(t, (b) => Math.hypot(b.x - hero.x, b.z - hero.z) > 0.95)) physics.setPropSolid(p, true);
+    leafBurst.update(dt);
     school.update(dt, t);
     ripples.update(dt);
     splash.update(dt);
     hero.animate(dt, t);
+    swoosh.update(dt, hero.x, hero.group.position.y, hero.z, hero.swing);
     uniforms.uHero.value.set(hero.x, hero.z);
     for (const c of chests.values()) c.update(dt, t);
     animateFlags(town, t);
@@ -266,6 +300,11 @@ async function init() {
       if (introT >= 1) state = 'play';
     } else {
       camera.position.copy(followPos);
+      if (shake > 0.001) {
+        camera.position.x += (Math.random() - 0.5) * shake;
+        camera.position.y += (Math.random() - 0.5) * shake;
+        shake *= Math.exp(-dt * 18);
+      }
       camera.lookAt(focus);
       followSun(focus);
     }

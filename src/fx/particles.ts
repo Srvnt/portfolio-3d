@@ -103,10 +103,11 @@ export class Puffs {
   private pool: { m: THREE.Mesh; life: number; max: number; vel: THREE.Vector3; grow: number }[] = [];
   private next = 0;
 
-  constructor(count: number, color: string, opacity: number) {
-    const geo = new THREE.IcosahedronGeometry(0.2, 1);
+  /** gravity > 0 makes particles fall and tumble (leaf bursts); 0 for drifting smoke/dust. */
+  constructor(count: number, color: string, opacity: number, private gravity = 0) {
+    const geo = gravity ? new THREE.CircleGeometry(0.2, 5) : new THREE.IcosahedronGeometry(0.2, 1);
     for (let i = 0; i < count; i++) {
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, transparent: true, opacity, depthWrite: false, roughness: 1, flatShading: true }));
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, transparent: true, opacity, depthWrite: false, roughness: 1, flatShading: true, side: gravity ? THREE.DoubleSide : THREE.FrontSide }));
       m.visible = false;
       this.group.add(m);
       this.pool.push({ m, life: 0, max: 1, vel: new THREE.Vector3(), grow: 1 });
@@ -132,6 +133,12 @@ export class Puffs {
       p.life += dt;
       const k = p.life / p.max;
       if (k >= 1) { p.m.visible = false; continue; }
+      if (this.gravity) {
+        p.vel.y -= this.gravity * dt;
+        p.vel.multiplyScalar(1 - dt * 1.5); // air drag: leaves flutter down
+        p.m.rotation.x += dt * 7;
+        p.m.rotation.z += dt * 5;
+      }
       p.m.position.addScaledVector(p.vel, dt);
       p.m.scale.multiplyScalar(1 + p.grow * dt);
       const mat = p.m.material as THREE.MeshStandardMaterial;
@@ -216,6 +223,91 @@ export class Ripples {
       if (k >= 1) { p.m.visible = false; continue; }
       p.m.scale.setScalar(0.08 + k * p.size);
       (p.m.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.75;
+    }
+  }
+}
+
+/**
+ * Glowing arc that trails the sword. Horizontal slashes draw on a flat ring around the hero,
+ * the overhead chop on a vertical one. Angles are fed each frame from the hero's swing.
+ */
+export class Swoosh {
+  group = new THREE.Group();
+  private flat: THREE.Mesh;
+  private upright: THREE.Mesh;
+  private alpha = 0;
+  private active: THREE.Mesh | null = null;
+
+  constructor() {
+    const make = () => new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      uniforms: { uHead: { value: 0 }, uTail: { value: 0 }, uAlpha: { value: 0 } },
+      vertexShader: /* glsl */ `
+        varying vec2 vP;
+        void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */ `
+        uniform float uHead, uTail, uAlpha; varying vec2 vP;
+        void main(){
+          float a = atan(vP.y, vP.x);
+          float span = uHead - uTail;
+          float rel = mod((a - uTail) * sign(span) + 6.28318, 6.28318);
+          float t = rel / max(abs(span), 0.001);
+          if (t > 1.0) discard;
+          float r = length(vP);
+          float edge = smoothstep(0.35, 1.2, r) * (1.0 - smoothstep(1.22, 1.3, r));
+          float a2 = pow(t, 1.6) * edge * uAlpha;
+          gl_FragColor = vec4(vec3(1.4, 1.6, 1.9) * a2, a2);
+        }`,
+    });
+    const flatGeo = new THREE.RingGeometry(0.3, 1.3, 48, 1);
+    flatGeo.rotateX(-Math.PI / 2);
+    this.flat = new THREE.Mesh(flatGeo, make());
+    this.flat.position.y = 0.88;
+    const upGeo = new THREE.RingGeometry(0.3, 1.3, 48, 1);
+    upGeo.rotateY(Math.PI / 2);
+    this.upright = new THREE.Mesh(upGeo, make());
+    this.upright.position.y = 0.95;
+    this.flat.visible = this.upright.visible = false;
+    this.flat.frustumCulled = this.upright.frustumCulled = false;
+    this.group.add(this.flat, this.upright);
+  }
+
+  /** `swing` from Hero; arm angles reconstructed from the same easing the hero uses. */
+  update(dt: number, x: number, y: number, z: number, swing: { combo: number; k: number; yaw: number } | null) {
+    this.group.position.set(x, y, z);
+    if (swing) {
+      this.group.rotation.y = swing.yaw;
+      const p = THREE.MathUtils.smoothstep(swing.k, 0.08, 0.62);
+      const mesh = swing.combo === 2 ? this.upright : this.flat;
+      const other = mesh === this.flat ? this.upright : this.flat;
+      other.visible = false;
+      mesh.visible = true;
+      this.active = mesh;
+      const u = (mesh.material as THREE.ShaderMaterial).uniforms;
+      let head: number, start: number;
+      if (swing.combo === 2) {
+        // hand direction (0, -cos α, -sin α) for arm angle α → ring angle atan2(-cos α, sin α)
+        const ang = (al: number) => Math.atan2(-Math.cos(al), Math.sin(al));
+        start = ang(-3.1);
+        head = start + p * 2.7; // ring angle = arm angle + 3π/2, so it grows with the swing (unwrapped)
+      } else {
+        const from = swing.combo === 0 ? -1.15 : 1.0;
+        const to = swing.combo === 0 ? 1.2 : -1.25;
+        start = from - Math.PI / 2;
+        head = from + (to - from) * p - Math.PI / 2;
+      }
+      const dir = Math.sign(head - start) || 1;
+      u.uHead.value = head;
+      u.uTail.value = dir > 0 ? Math.max(start, head - 1.6) : Math.min(start, head + 1.6);
+      this.alpha = p > 0.02 ? 1 : 0;
+      u.uAlpha.value = this.alpha;
+    } else if (this.active) {
+      this.alpha = Math.max(0, this.alpha - dt * 7);
+      (this.active.material as THREE.ShaderMaterial).uniforms.uAlpha.value = this.alpha;
+      if (this.alpha <= 0) { this.active.visible = false; this.active = null; }
     }
   }
 }

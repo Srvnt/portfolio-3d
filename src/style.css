@@ -347,7 +347,21 @@ html, body {
   border-radius: 50%;
   box-shadow: 0 8px 20px rgba(10, 18, 50, 0.35);
 }
-body.touch #action { display: block; }
+#attack {
+  display: none;
+  position: fixed;
+  right: 108px;
+  bottom: calc(40px + env(safe-area-inset-bottom));
+  width: 60px;
+  height: 60px;
+  font: 700 24px var(--font);
+  color: #fff;
+  background: #c0473a;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 8px 20px rgba(10, 18, 50, 0.35);
+}
+body.touch #action, body.touch #attack { display: block; }
 body.touch .hint { display: none; }
 
 @keyframes pulse { 50% { transform: scale(1.06); } }

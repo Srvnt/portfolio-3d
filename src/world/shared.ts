@@ -4,6 +4,8 @@ import * as THREE from 'three';
 export const uniforms = {
   uTime: { value: 0 },
   uHero: { value: new THREE.Vector2(-100, -100) },
+  /** Last sword hit: x, z, strength (decays to 0). Grass flattens around it. */
+  uHit: { value: new THREE.Vector3(-100, -100, 0) },
 };
 
 /** Low-poly helpers ---------------------------------------------------------- */

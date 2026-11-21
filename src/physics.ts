@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { BUILDINGS, FOUNTAIN, Occ, Tile, WorldMap } from './world/map';
+import { BUILDINGS, FOUNTAIN, Occ, Prop, Tile, WorldMap } from './world/map';
 
 interface Linked { body: CANNON.Body; mesh: THREE.Object3D; offset?: THREE.Vector3 }
 
@@ -11,6 +11,8 @@ export class Physics {
   propMat = new CANNON.Material('prop');
   private groundMat = new CANNON.Material('ground');
   private linked: Linked[] = [];
+  /** Static colliders of trees/bushes/rocks, so a cut bush can stop blocking. */
+  propBodies = new Map<Prop, CANNON.Body>();
 
   constructor(map: WorldMap) {
     this.world.broadphase = new CANNON.SAPBroadphase(this.world);
@@ -31,7 +33,7 @@ export class Physics {
     // trees, bushes, rocks
     for (const p of map.props) {
       if (!p.inside) continue;
-      this.cylinder(p.x, p.z, p.kind === 'tree' ? 0.32 : p.kind === 'bush' ? 0.5 : 0.42, 1.5);
+      this.propBodies.set(p, this.cylinder(p.x, p.z, p.kind === 'tree' ? 0.32 : p.kind === 'bush' ? 0.5 : 0.42, 1.5));
     }
     // water: merge each row's run of water tiles into one tall box
     for (let z = 0; z < map.H; z++) {
@@ -67,6 +69,7 @@ export class Physics {
     const body = new CANNON.Body({ mass: 0, material: this.groundMat, shape: new CANNON.Cylinder(r, r, h * 2, 10) });
     body.position.set(x, h, z);
     this.world.addBody(body);
+    return body;
   }
 
   /** Add a dynamic body that drives a mesh's transform. */
@@ -78,6 +81,32 @@ export class Physics {
     this.world.addBody(body);
     this.linked.push({ body, mesh, offset });
     return body;
+  }
+
+  /** Knock every pushable within `r` of `center` away along `dir` (sword hits). Returns how many were hit. */
+  impulseNear(center: THREE.Vector3, r: number, dir: THREE.Vector3, strength: number): number {
+    let n = 0;
+    for (const { body } of this.linked) {
+      const dx = body.position.x - center.x, dz = body.position.z - center.z;
+      const d = Math.hypot(dx, dz);
+      if (d > r) continue;
+      // push mostly along the swing, a bit away from the hit point, and up
+      const away = new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(0.5).add(dir).normalize();
+      const k = strength * (1 - d / r * 0.5) * body.mass;
+      body.wakeUp();
+      body.applyImpulse(new CANNON.Vec3(away.x * k, k * 0.55, away.z * k));
+      body.angularVelocity.set((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+      n++;
+    }
+    return n;
+  }
+
+  setPropSolid(p: Prop, solid: boolean) {
+    const b = this.propBodies.get(p);
+    if (!b) return;
+    const inWorld = this.world.bodies.includes(b);
+    if (solid && !inWorld) this.world.addBody(b);
+    if (!solid && inWorld) this.world.removeBody(b);
   }
 
   step(dt: number) {
