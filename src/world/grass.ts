@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Occ, Tile, WorldMap } from './map';
-import { hash2 } from '../core/random';
+import { hash2, valueNoise } from '../core/random';
 import { uniforms } from './shared';
 
 const BLADE_H = 0.32;
@@ -11,15 +11,16 @@ const BLADE_H = 0.32;
  */
 export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh {
   // one tapered blade: 5 verts
-  const w = 0.045;
+  const w = 0.06;
   const geo = new THREE.BufferGeometry();
-  const pos = [-w, 0, 0, w, 0, 0, -w * 0.6, BLADE_H * 0.5, 0, w * 0.6, BLADE_H * 0.5, 0, 0, BLADE_H, 0];
+  // slight forward curve so blades read as soft tufts, not flat cards
+  const pos = [-w, 0, 0, w, 0, 0, -w * 0.65, BLADE_H * 0.55, 0.02, w * 0.65, BLADE_H * 0.55, 0.02, 0, BLADE_H, 0.07];
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setIndex([0, 1, 2, 1, 3, 2, 2, 3, 4]);
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(15).fill(0).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
-  const base = new THREE.Color('#3f7c2a');
-  const mid = new THREE.Color('#6aaa3c');
-  const tip = new THREE.Color('#b8e070');
+  const base = new THREE.Color('#2c6420');
+  const mid = new THREE.Color('#5aa636');
+  const tip = new THREE.Color('#c6ea78');
   geo.setAttribute('color', new THREE.Float32BufferAttribute([
     ...base.toArray(), ...base.toArray(), ...mid.toArray(), ...mid.toArray(), ...tip.toArray(),
   ], 3));
@@ -90,14 +91,23 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
     const h = hash2(Math.floor(x * 97), Math.floor(z * 97), 5);
     e.set((h - 0.5) * 0.3, h * Math.PI * 2, (hash2(i, 3, 9) - 0.5) * 0.3);
     q.setFromEuler(e);
-    const sc = 0.65 + hash2(i, 7, 4) * 0.75;
-    s.set(1, sc, 1);
+    // tall lush clumps and shorter meadow, driven by soft noise
+    const clump = valueNoise(x * 0.55, z * 0.55, 13);
+    const sc = (0.6 + hash2(i, 7, 4) * 0.55) * (0.7 + clump * 1.0);
+    const wide = 0.85 + hash2(i, 8, 4) * 0.5;
+    s.set(wide, sc, wide);
     p.set(x, 0, z);
     m.compose(p, q, s);
     mesh.setMatrixAt(i, m);
-    const v1 = hash2(i, 1, 1);
-    const v2 = hash2(i, 2, 2);
-    col.setRGB(0.82 + v1 * 0.3, 0.88 + v2 * 0.2, 0.8 + v1 * 0.15);
+    // patches: deep green in clumps, sunnier yellow-green in open meadow
+    const v = hash2(i, 1, 1);
+    const sun = valueNoise(x * 0.3 + 40, z * 0.3, 14);
+    const deep = clump * 0.25;
+    col.setRGB(
+      0.78 + v * 0.22 + sun * 0.18 - deep,
+      0.9 + v * 0.15 + sun * 0.06 - deep * 0.4,
+      0.72 + v * 0.12 - deep,
+    );
     mesh.setColorAt(i, col);
   }
   mesh.receiveShadow = true;

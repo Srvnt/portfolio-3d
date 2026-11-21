@@ -3,7 +3,7 @@ import { BUILDINGS, FOUNTAIN, Tile, WorldMap } from './map';
 import { hash2, rng, valueNoise } from '../core/random';
 import { canvasTexture, makeCanvas } from './shared';
 
-export const GRASS_BASE = '#5e9e3a';
+export const GRASS_BASE = '#4f8e32';
 
 /** Height of the land. The village is flat; hills rise outside it to frame the valley. */
 export function heightAt(map: WorldMap, x: number, z: number): number {

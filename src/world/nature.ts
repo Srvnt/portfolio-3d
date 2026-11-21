@@ -117,7 +117,7 @@ function createFlowers(map: WorldMap): THREE.Group {
   const heads = new THREE.InstancedMesh(headGeo, headMat, pts.length);
   const m = new THREE.Matrix4();
   pts.forEach((p, i) => {
-    const s = 0.8 + hash2(i, 1, 1) * 0.5;
+    const s = 1.5 + hash2(i, 1, 1) * 0.7; // tall enough to peek over the grass
     m.makeScale(s, s, s).setPosition(p.x, 0, p.z);
     stems.setMatrixAt(i, m);
     heads.setMatrixAt(i, m);

@@ -30,7 +30,7 @@ async function init() {
 
   scene.add(createTerrain(map));
   scene.add(createWater(map));
-  scene.add(createGrass(map, lowEnd ? 16 : 34));
+  scene.add(createGrass(map, lowEnd ? 28 : 64));
   scene.add(createNature(map));
   scene.add(createBridges(map));
   scene.add(createFountain());
