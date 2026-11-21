@@ -1,5 +1,6 @@
 import { BUILDINGS, FOUNTAIN, Prop, SAFE, SPAWN_ZONES, Tile, WorldMap } from '../world/map';
 import { hash2, rng } from '../core/random';
+import { HOUSE_ICONS } from '../world/props';
 
 const PPT = 10;
 const VIEW = 15;
@@ -8,6 +9,7 @@ export interface MapMarkers {
   hero: { x: number; z: number; heading: number };
   enemies: { x: number; z: number; kind: string; alive: boolean }[];
   chests: { x: number; z: number; opened: boolean }[];
+  npc?: { x: number; z: number; talked: boolean; name: string };
 }
 
 function paintBase(map: WorldMap): HTMLCanvasElement {
@@ -246,6 +248,20 @@ export class Minimap {
     for (const zn of SPAWN_ZONES) this.skull(W((zn.x0 + zn.x1) / 2), Z((zn.z0 + zn.z1) / 2), scale * (this.full ? 0.9 : 0.7));
 
     for (const c of m.chests) if (!c.opened) this.chest(W(c.x), Z(c.z), Math.max(5 * dpr, scale * 0.7));
+    const badge = Math.max(9 * dpr, scale * (this.full ? 0.95 : 1.05));
+    for (const b of BUILDINGS) this.houseBadge(W(b.x0 + b.w / 2), Z(b.z0 + b.d / 2 - 0.3), badge, HOUSE_ICONS[b.section] ?? '★', dpr);
+    if (m.npc) {
+      this.npcBadge(W(m.npc.x), Z(m.npc.z), badge * 0.85, m.npc.talked, dpr);
+      if (this.full) {
+        g.font = `800 ${11 * dpr}px Cinzel, Georgia, serif`;
+        g.textAlign = 'center';
+        g.lineWidth = 4 * dpr;
+        g.strokeStyle = 'rgba(20,24,50,0.75)';
+        g.strokeText(m.npc.name, W(m.npc.x), Z(m.npc.z) + badge * 1.5);
+        g.fillStyle = '#c8f0b0';
+        g.fillText(m.npc.name, W(m.npc.x), Z(m.npc.z) + badge * 1.5);
+      }
+    }
     for (const e of m.enemies) {
       if (!e.alive) continue;
       const rad = (e.kind === 'brute' ? 0.55 : 0.38) * scale + dpr;
@@ -284,6 +300,47 @@ export class Minimap {
     g.lineWidth = Math.max(1.5, s * 0.18);
     g.strokeStyle = '#e8a93a';
     g.stroke();
+    g.restore();
+  }
+
+  private houseBadge(x: number, y: number, r: number, icon: string, dpr: number) {
+    const g = this.g;
+    g.save();
+    g.shadowColor = 'rgba(0,0,0,0.45)';
+    g.shadowBlur = 4 * dpr;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fillStyle = '#1c2a66';
+    g.fill();
+    g.shadowBlur = 0;
+    g.lineWidth = Math.max(1.5, r * 0.18);
+    g.strokeStyle = '#f2c66b';
+    g.stroke();
+    g.font = `${r * 1.15}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(icon, x, y + r * 0.08);
+    g.restore();
+  }
+
+  private npcBadge(x: number, y: number, r: number, talked: boolean, dpr: number) {
+    const g = this.g;
+    g.save();
+    g.shadowColor = 'rgba(0,0,0,0.45)';
+    g.shadowBlur = 4 * dpr;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fillStyle = '#3f6b4a';
+    g.fill();
+    g.shadowBlur = 0;
+    g.lineWidth = Math.max(1.5, r * 0.18);
+    g.strokeStyle = '#fff0c4';
+    g.stroke();
+    g.fillStyle = talked ? '#e8f5dc' : '#ffd36a';
+    g.font = `800 ${r * 1.3}px Georgia, serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(talked ? '…' : '!', x, y + r * (talked ? -0.15 : 0.05));
     g.restore();
   }
 

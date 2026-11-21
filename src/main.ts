@@ -345,6 +345,7 @@ async function init() {
       hero: { x: hero.x, z: hero.z, heading: hero.heading },
       enemies: enemies.list.map((e) => ({ x: e.x, z: e.z, kind: e.kind, alive: e.state !== 'dead' })),
       chests: chestMarkers.map((c) => ({ x: c.x, z: c.z, opened: chests.get(c.id)?.opened ?? false })),
+      npc: guide ? { x: guide.group.position.x, z: guide.group.position.z, talked: guide.talked, name: content.guide.name } : undefined,
     });
     uniforms.uHit.value.z *= Math.exp(-dt * 3);
     for (const p of regrowBushes(t, (b) => Math.hypot(b.x - hero.x, b.z - hero.z) > 0.95)) physics.setPropSolid(p, true);

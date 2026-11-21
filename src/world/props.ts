@@ -431,7 +431,7 @@ export function createLanterns(physics: Physics, withLights: number) {
   };
 }
 
-const HOUSE_ICONS: Record<string, string> = { about: '🏠', projects: '🗺️', skills: '⚒️', experience: '📚', contact: '✉️' };
+export const HOUSE_ICONS: Record<string, string> = { about: '🏠', projects: '🗺️', skills: '⚒️', experience: '📚', contact: '✉️' };
 const HOUSE_TITLES: Record<string, string> = { about: 'About', projects: 'Projects', skills: 'Skills', experience: 'Experience', contact: 'Contact' };
 
 function houseSignTexture(icon: string, title: string, place: string) {
