@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Building, ROOF_H, WALL_H } from './map';
 import { canvasTexture, makeCanvas, standard } from './shared';
-import { rng } from '../core/random';
+import { rng, valueNoise } from '../core/random';
 import { createIvy } from './decals';
 
 const PLINTH = 0.3;
@@ -76,39 +76,83 @@ function weatheredPlaster(seed: number): THREE.CanvasTexture {
   return canvasTexture(canvas);
 }
 
-/** Moss patches for a roof: heavy along the eaves and ridge, scattered elsewhere. Transparent. */
-function mossTexture(seed: number): THREE.CanvasTexture {
-  const S = 256;
+/** fractal value noise in [0,1) */
+function fbm(x: number, y: number, seed: number, oct = 4) {
+  let a = 0.5, f = 1, sum = 0, norm = 0;
+  for (let o = 0; o < oct; o++) { sum += valueNoise(x * f, y * f, seed + o * 17) * a; norm += a; a *= 0.5; f *= 2.03; }
+  return sum / norm;
+}
+
+/**
+ * Roof moss: large organic cushions with fuzzy edges, bumpy relief (normal map),
+ * yellow-green tips over olive depths, rusty spore patches and pale lichen spots.
+ * Canvas bottom = eave (uv v=0), top = ridge. Left half = front slope, right half = back.
+ */
+function mossTextures(seed: number, span: number, slope: number): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture } {
+  const S = 512;
   const { canvas, ctx } = makeCanvas(S, S);
-  const r = rng(seed);
-  const blob = (x: number, y: number, rad: number) => {
-    const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
-    const tone = r() < 0.5 ? '78,112,48' : '58,90,40';
-    g.addColorStop(0, `rgba(${tone},0.85)`);
-    g.addColorStop(0.5, `rgba(${tone},0.55)`);
-    g.addColorStop(1, `rgba(${tone},0)`);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, rad, 0, Math.PI * 2);
-    ctx.fill();
-  };
-  // canvas bottom = eave (uv v=0), top = ridge
-  // clustered patches along the eaves (not a continuous band)
-  for (let c = 0; c < 5; c++) {
-    const cx = r() * S;
-    for (let i = 0; i < 4; i++) blob(cx + (r() - 0.5) * 40, S - r() * 26, 6 + r() * 13);
+  const img = ctx.createImageData(S, S);
+  const height = new Float32Array(S * S);
+  const deep = new THREE.Color('#557f2e'), mid = new THREE.Color('#86ad3e'), tip = new THREE.Color('#cfe06a');
+  const rust = new THREE.Color('#a07a34'), lichen = new THREE.Color('#cfd2b4');
+  const c = new THREE.Color();
+  for (let y = 0; y < S; y++) {
+    const v = 1 - y / S;
+    // moss loves the damp eaves, a little along the ridge
+    const bias = 0.3 * (1 - Math.min(1, v / 0.3)) + 0.12 * Math.max(0, (v - 0.86) / 0.14);
+    // sample noise in roof units so patches keep their true shape on wide roofs
+    const wy = v * slope;
+    for (let x = 0; x < S; x++) {
+      const i = y * S + x;
+      const wx = (x / (S / 2)) * span;
+      const n = fbm(wx / 1.7, wy / 1.7, seed);
+      const grain = valueNoise(wx / 0.03, wy / 0.03, seed + 5) - 0.5;
+      const density = n + bias - 0.56 + grain * 0.06;
+      let a = 0;
+      if (density > 0) {
+        // cushion relief: thick in the middle, small round bumps on top
+        const bumps = fbm(wx / 0.11, wy / 0.11, seed + 9, 3);
+        const h = Math.min(1, density * 9) * (0.6 + bumps * 0.55);
+        height[i] = h;
+        const sp = fbm(wx / 0.45, wy / 0.45, seed + 21, 2);
+        c.copy(deep).lerp(mid, Math.min(1, h * 1.4)).lerp(tip, Math.max(0, (bumps - 0.5) * 1.6) * h);
+        if (sp > 0.68) c.lerp(rust, Math.min(1, (sp - 0.68) * 5) * 0.7); // spore stalks
+        c.multiplyScalar(0.88 + grain * 0.25);
+        a = Math.min(1, density * 14) * 255;
+      } else {
+        // lichen rosettes on bare shingles
+        const l = valueNoise(wx / 0.11, wy / 0.11, seed + 31);
+        if (l > 0.86 && valueNoise(wx / 0.9, wy / 0.9, seed + 33) > 0.45) {
+          c.copy(lichen).multiplyScalar(0.9 + grain * 0.3);
+          a = Math.min(1, (l - 0.86) * 18) * 200;
+          height[i] = 0.1;
+        }
+      }
+      const o = i * 4;
+      img.data[o] = c.r * 255; img.data[o + 1] = c.g * 255; img.data[o + 2] = c.b * 255; img.data[o + 3] = a;
+    }
   }
-  for (let i = 0; i < 6; i++) blob(r() * S, r() * 16, 5 + r() * 9);
-  for (let i = 0; i < 6; i++) blob(r() * S, 40 + r() * (S - 90), 4 + r() * 10);
-  // bright speckles on top of the moss
-  for (let i = 0; i < 500; i++) {
-    const x = r() * S, y = r() * S;
-    const a = ctx.getImageData(x | 0, y | 0, 1, 1).data[3];
-    if (a < 120) continue;
-    ctx.fillStyle = r() < 0.5 ? 'rgba(170,205,100,0.9)' : 'rgba(50,80,35,0.9)';
-    ctx.fillRect(x, y, 2, 2);
-  }
-  return canvasTexture(canvas);
+  ctx.putImageData(img, 0, 0);
+
+  // normal map from the height field
+  const { canvas: nc, ctx: nctx } = makeCanvas(S, S);
+  const nimg = nctx.createImageData(S, S);
+  const H = (x: number, y: number) => height[Math.min(S - 1, Math.max(0, y)) * S + Math.min(S - 1, Math.max(0, x))];
+  for (let y = 0; y < S; y++)
+    for (let x = 0; x < S; x++) {
+      const dx = (H(x + 1, y) - H(x - 1, y)) * 3;
+      const dy = (H(x, y + 1) - H(x, y - 1)) * 3;
+      const len = Math.hypot(dx, dy, 1);
+      const o = (y * S + x) * 4;
+      nimg.data[o] = (-dx / len * 0.5 + 0.5) * 255;
+      nimg.data[o + 1] = (dy / len * 0.5 + 0.5) * 255;
+      nimg.data[o + 2] = (1 / len * 0.5 + 0.5) * 255;
+      nimg.data[o + 3] = 255;
+    }
+  nctx.putImageData(nimg, 0, 0);
+  const normalMap = new THREE.CanvasTexture(nc);
+  normalMap.colorSpace = THREE.NoColorSpace;
+  return { map: canvasTexture(canvas), normalMap };
 }
 
 /** Soft shingle texture tinted per roof colour. */
@@ -278,8 +322,10 @@ export function createBuilding(b: Building): BuildingResult {
   }
   mossGeo.setAttribute('uv', new THREE.Float32BufferAttribute(mossUv, 2));
   mossGeo.computeVertexNormals();
+  const mossTex = mossTextures(seed + 5, maxU * 1.4, maxV * 1.4);
   const moss = new THREE.Mesh(mossGeo, new THREE.MeshStandardMaterial({
-    map: mossTexture(seed + 5), transparent: true, alphaTest: 0.08, roughness: 1,
+    map: mossTex.map, normalMap: mossTex.normalMap, normalScale: new THREE.Vector2(1.1, 1.1),
+    transparent: true, alphaTest: 0.02, roughness: 1,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false,
   }));
   moss.receiveShadow = true;
