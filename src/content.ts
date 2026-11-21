@@ -13,6 +13,8 @@ export interface Content {
   secrets: string[];
   /** Each fish in the river reveals one fact. Order matches the species (pike, perch, trout, salmon). */
   fish: { name: string; fact: string }[];
+  /** Text on the warning signs at the edge of the village. */
+  warning: string[];
 }
 
 /** All portfolio text lives in content.json — edit that file, not the code. */

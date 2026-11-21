@@ -155,6 +155,50 @@ export class UI {
     this.onPanelClose?.();
   }
 
+  // ---------------------------------------------------------- combat HUD
+  private hud = $('#hud');
+  private hpEl = $('#hud .hp');
+  private hpFill = $('#hud .hp-fill');
+  private hpText = $('#hud .hp-text');
+  private dmgRoot = $('#dmg');
+  private hurtEl = $('#vignette-hurt');
+
+  showHud(name: string) {
+    this.hud.hidden = false;
+    $('#hud .hud-name').textContent = name;
+  }
+
+  private lastHp = -1;
+  setHp(hp: number, max: number) {
+    const shown = Math.ceil(hp);
+    if (shown === this.lastHp) return;
+    this.lastHp = shown;
+    const r = Math.max(0, hp / max);
+    this.hpFill.style.width = `${r * 100}%`;
+    this.hpText.textContent = `${Math.ceil(hp)} / ${max}`;
+    this.hpEl.classList.toggle('mid', r <= 0.5 && r > 0.25);
+    this.hpEl.classList.toggle('low', r <= 0.25);
+  }
+
+  /** Red flash at the screen edges when the hero is hit. */
+  hurtFlash() {
+    this.hurtEl.classList.add('on');
+    requestAnimationFrame(() => requestAnimationFrame(() => this.hurtEl.classList.remove('on')));
+  }
+
+  /** Floating number at a world position. */
+  damageNumber(at: THREE.Vector3, text: string, kind: 'hit' | 'crit' | 'hero' | 'heal', camera: THREE.Camera) {
+    const v = at.clone().project(camera);
+    if (v.z > 1) return;
+    const el = document.createElement('div');
+    el.className = `dmg ${kind}`;
+    el.textContent = text;
+    el.style.setProperty('--x', `${((v.x + 1) / 2) * window.innerWidth + (Math.random() - 0.5) * 24}px`);
+    el.style.setProperty('--y', `${((1 - v.y) / 2) * window.innerHeight}px`);
+    this.dmgRoot.appendChild(el);
+    setTimeout(() => el.remove(), 950);
+  }
+
   // ---------------------------------------------------------- fishing
   private fishHintEl = $('#fish-hint');
   private fishAlertEl = $('#fish-alert');

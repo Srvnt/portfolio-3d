@@ -198,11 +198,11 @@ export class Ripples {
   group = new THREE.Group();
   private pool: { m: THREE.Mesh; life: number; max: number; size: number }[] = [];
   private next = 0;
-  constructor(count = 16) {
-    const geo = new THREE.RingGeometry(0.86, 1, 40);
+  constructor(count = 16, color = '#eafaff', thickness = 0.14) {
+    const geo = new THREE.RingGeometry(1 - thickness, 1, 40);
     geo.rotateX(-Math.PI / 2);
     for (let i = 0; i < count; i++) {
-      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#eafaff', transparent: true, opacity: 0, depthWrite: false }));
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false }));
       m.visible = false;
       this.group.add(m);
       this.pool.push({ m, life: 0, max: 1, size: 1 });

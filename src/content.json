@@ -129,7 +129,9 @@
   "secrets": [
     "You found a fun fact! Placeholder: something surprising about you.",
     "You found a side quest! Placeholder: a hobby project or game jam entry.",
-    "You found the developer's notes! This world is hand-built with Three.js — no game engine."
+    "You found the developer's notes! This world is hand-built with Three.js — no game engine.",
+    "You found an explorer's badge! Placeholder: a place you'd love to travel to.",
+    "You found an old map! Placeholder: something you're learning right now."
   ],
   "fish": [
     {
@@ -148,5 +150,10 @@
       "name": "Salmon",
       "fact": "I go to the gym regularly. Consistent training keeps both body and mind sharp, just like steady practice does for code."
     }
+  ],
+  "warning": [
+    "Beyond this sign lie the wilds. Monsters roam out there!",
+    "Fight with Space (or click) and chain three swings into a combo. Watch for attacks being wound up, then dodge.",
+    "Hurt? Come back to the village. You'll heal while you rest here."
   ]
 }

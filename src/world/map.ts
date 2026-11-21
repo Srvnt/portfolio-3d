@@ -29,7 +29,20 @@ export interface Interactable {
   labelPos: [number, number, number];
   section?: SectionId;
   index?: number;
+  /** Custom dialog lines (signs). */
+  text?: string[];
 }
+
+export type EnemyKind = 'jelly' | 'beetle' | 'brute';
+/** Wild areas where monsters roam. The village (SAFE) is never entered by them. */
+export const SPAWN_ZONES: { x0: number; z0: number; x1: number; z1: number; kinds: EnemyKind[] }[] = [
+  { x0: 47, z0: 3, x1: 68, z1: 14, kinds: ['jelly', 'jelly', 'beetle'] },
+  { x0: 47, z0: 21, x1: 68, z1: 40, kinds: ['beetle', 'jelly', 'brute', 'jelly'] },
+  { x0: 4, z0: 38, x1: 29, z1: 54, kinds: ['jelly', 'jelly', 'beetle', 'brute'] },
+  { x0: 39, z0: 43, x1: 68, z1: 54, kinds: ['brute', 'beetle', 'jelly'] },
+];
+/** The village: monsters stay out and the hero slowly heals here. */
+export const SAFE = { x0: 0, z0: 0, x1: 45, z1: 35 };
 
 export interface Prop { kind: 'tree' | 'bush' | 'rock'; x: number; z: number; v: number; inside: boolean }
 
@@ -44,15 +57,15 @@ export const BUILDINGS: Building[] = [
   { id: 'post', section: 'contact', label: 'Post Office · Contact', x0: 37, z0: 11, w: 5, d: 4, roof: '#2f9488', accent: '#e05050' },
 ];
 
-const CHESTS: [number, number][] = [[3, 3], [40, 33], [14, 33]];
+const CHESTS: [number, number][] = [[3, 3], [40, 33], [14, 33], [65, 6], [6, 53]];
 export const SIGN: [number, number] = [19, 15];
 export const FOUNTAIN = { x: 22, z: 17.5 };
 /** Name letters stand across the south edge of the plaza. */
 export const LETTERS = { x: 22, z: 20.9, maxWidth: 7.8 };
 
 export class WorldMap {
-  readonly W = 44;
-  readonly H = 36;
+  readonly W = 72;
+  readonly H = 58;
   tiles: Uint8Array;
   occ: Uint8Array;
   flowers: Uint8Array;
@@ -99,6 +112,8 @@ export class WorldMap {
     this.build();
   }
 
+  isSafe(x: number, z: number) { return x < SAFE.x1 && z < SAFE.z1; }
+
   inside(x: number, z: number) { return x >= 0 && z >= 0 && x < this.W && z < this.H; }
   i(x: number, z: number) { return z * this.W + x; }
   tile(x: number, z: number): Tile { return this.inside(x, z) ? (this.tiles[this.i(x, z)] as Tile) : Tile.Grass; }
@@ -130,7 +145,10 @@ export class WorldMap {
 
     this.road(2, 17, W - 3, 18);
     this.road(4, 29, 30, 30);
-    this.road(21, 10, 22, 30);
+    this.road(21, 10, 22, 50);
+    // roads into the wilds: a southern east-west road (second bridge) and an eastern loop
+    this.road(6, 46, W - 8, 47);
+    this.road(56, 18, 57, 46);
     this.road(18, 14, 25, 21);
     this.road(8, 13, 8, 16);
     this.road(8, 26, 8, 28);
@@ -195,6 +213,16 @@ export class WorldMap {
       labelPos: [SIGN[0] + 0.5, 2.3, SIGN[1] + 0.5],
     });
 
+    // warning signs where the roads leave the village
+    for (const [id, x, z] of [['warn-east', 45, 15], ['warn-south', 23, 35]] as [string, number, number][]) {
+      this.occ[this.i(x, z)] = Occ.Fixture;
+      this.interactables.push({
+        id, kind: 'sign', label: 'Warning sign',
+        x: x + 0.5, z: z + 0.5, range: 1.5,
+        labelPos: [x + 0.5, 2.3, z + 0.5],
+      });
+    }
+
     CHESTS.forEach(([x, z], index) => {
       this.occ[this.i(x, z)] = Occ.Fixture;
       this.rect(x - 1, z - 1, x + 1, z + 1, (_x, _z, i) => (this.reserved[i] = 1));
@@ -217,8 +245,11 @@ export class WorldMap {
         }
         const forest = valueNoise(x / 5, z / 5, 11) > 0.62;
         const nearWater = this.near(x, z, Tile.Water);
-        if (border || h < (forest ? 0.6 : 0.06)) this.addProp('tree', x, z);
-        else if (h < (forest ? 0.66 : 0.1)) this.addProp('bush', x, z);
+        const meadow = SPAWN_ZONES.some((zn) => x >= zn.x0 && x <= zn.x1 && z >= zn.z0 && z <= zn.z1);
+        const treeP = meadow ? (forest ? 0.35 : 0.025) : forest ? 0.6 : 0.06;
+        const bushP = treeP + (meadow ? 0.07 : forest ? 0.06 : 0.04);
+        if (border || h < treeP) this.addProp('tree', x, z);
+        else if (h < bushP) this.addProp('bush', x, z);
         else if (h < (nearWater ? 0.2 : 0.115)) this.addProp('rock', x, z);
         else if (h > 0.9) this.flowers[i] = 1;
       }

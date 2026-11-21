@@ -11,6 +11,8 @@ import { animateFlags, createBuilding } from './world/buildings';
 import { Chest, createBridges, createFountain, createLetters, createPushables, createSign } from './world/props';
 import { School, SPECIES } from './world/fish';
 import { Fishing } from './fishing';
+import { Enemies } from './combat/enemies';
+import { Hearts } from './combat/pickups';
 import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples, Swoosh } from './fx/particles';
 import { uniforms } from './world/shared';
 import { Physics } from './physics';
@@ -33,7 +35,7 @@ async function init() {
 
   scene.add(createTerrain(map));
   scene.add(createWater(map));
-  scene.add(createGrass(map, lowEnd ? 28 : 64));
+  scene.add(createGrass(map, lowEnd ? 24 : 50));
   scene.add(createNature(map, lowEnd));
   scene.add(createGroundDetails(map));
   scene.add(createFallingLeaves(map, lowEnd ? 120 : 240));
@@ -72,7 +74,7 @@ async function init() {
   // river life + fishing
   const splash = new Puffs(30, '#eaf8ff', 0.85);
   const ripples = new Ripples(18);
-  const school = new School(map, Math.max(8, SPECIES.length * 2));
+  const school = new School(map, Math.max(12, SPECIES.length * 3));
   school.onSplash = (p, big) => {
     ripples.emit(p, big ? 0.9 : 0.5);
     for (let i = 0; i < (big ? 5 : 3); i++)
@@ -93,8 +95,50 @@ async function init() {
         1.3 + Math.random() * 0.6, 0.28 + Math.random() * 0.2, 0,
       );
   };
+  // ---------------------------------------------------------------- combat
+  const enemies = new Enemies(map, lowEnd ? 12 : 18);
+  const hearts = new Hearts();
+  const shockRings = new Ripples(6, '#ffb070', 0.3);
+  const poof = new Puffs(40, '#f4e8ff', 0.9);
+  scene.add(enemies.group, hearts.group, shockRings.group, poof.group);
+  let hitStop = 0;
+  let downT = 0;
+  const heroTop = () => new THREE.Vector3(hero.x, 1.6, hero.z);
+  enemies.onHeroHit = (dmg, fx, fz) => {
+    if (!hero.hurt(dmg, fx, fz)) return;
+    ui.damageNumber(heroTop(), `-${dmg}`, 'hero', camera);
+    ui.hurtFlash();
+    shake = 0.28;
+    hitStop = 0.05;
+    if (state === 'fishing') { fishing.stop(); state = 'play'; }
+  };
+  enemies.onShockwave = (x, z, r) => {
+    shockRings.emit(new THREE.Vector3(x, 0, z), r * 1.1, 0.45);
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      dust.emit(new THREE.Vector3(x + Math.cos(a) * 0.6, 0.1, z + Math.sin(a) * 0.6), new THREE.Vector3(Math.cos(a) * 3, 0.6, Math.sin(a) * 3), 0.5, 0.45, 1.5);
+    }
+    if (Math.hypot(hero.x - x, hero.z - z) < 7) shake = Math.max(shake, 0.2);
+  };
+  enemies.onStep = (x, z) => dust.emit(new THREE.Vector3(x, 0.1, z), new THREE.Vector3((Math.random() - 0.5), 0.5, (Math.random() - 0.5)), 0.5, 0.35, 1.3);
+  enemies.onDeath = (e) => {
+    for (let i = 0; i < 12; i++)
+      poof.emit(new THREE.Vector3(e.x, 0.4 + Math.random() * 0.5, e.z), new THREE.Vector3((Math.random() - 0.5) * 3, 1 + Math.random() * 2, (Math.random() - 0.5) * 3), 0.6, 0.5, 1.4);
+    if (Math.random() < (e.kind === 'brute' ? 0.9 : 0.4)) hearts.drop(e.x, e.z);
+  };
+
   hero.onSlash = (c, fwd, combo) => {
     const r = combo === 2 ? 1.45 : 1.2;
+    const hits = enemies.slash(c, r, fwd, combo, hero.x, hero.z);
+    for (const h of hits) {
+      ui.damageNumber(new THREE.Vector3(h.enemy.x, h.enemy.stats.barY * h.enemy.size + 0.2, h.enemy.z), h.crit ? `${h.dmg}!` : `${h.dmg}`, h.crit ? 'crit' : 'hit', camera);
+      for (let i = 0; i < 4; i++)
+        poof.emit(new THREE.Vector3(h.enemy.x, 0.5, h.enemy.z), new THREE.Vector3(fwd.x * 2 + (Math.random() - 0.5) * 2, 1 + Math.random(), fwd.z * 2 + (Math.random() - 0.5) * 2), 0.3, 0.25, 0.5);
+    }
+    if (hits.length) {
+      hitStop = hits.some((h) => h.crit || h.killed) ? 0.1 : 0.06;
+      shake = Math.max(shake, hits.some((h) => h.crit) ? 0.22 : 0.14);
+    }
     const knocked = physics.impulseNear(c, r, fwd, combo === 2 ? 4.5 : 3.2);
     const cut = cutBushes(c, r * 0.85, clock.elapsedTime);
     for (const p of cut) { physics.setPropSolid(p, false); burst(p.x, 0.35, p.z, 16); }
@@ -113,7 +157,7 @@ async function init() {
   let shownAllCaught = false;
 
   // ---------------------------------------------------------------- state
-  type State = 'title' | 'intro' | 'play' | 'dialog' | 'panel' | 'fishing';
+  type State = 'title' | 'intro' | 'play' | 'dialog' | 'panel' | 'fishing' | 'down';
   let state: State = 'title';
   const input = new Input();
   const ui = new UI(content);
@@ -128,6 +172,7 @@ async function init() {
   ui.waitForStart().then(() => {
     input.drain();
     state = 'intro';
+    ui.showHud(content.profile.name);
   });
 
   const nearest = (): Interactable | null => {
@@ -156,7 +201,8 @@ async function init() {
       ui.openPanel(it.section);
     } else if (it.kind === 'sign') {
       state = 'dialog';
-      ui.dialog('Signpost', content.sign, () => (state = 'play'));
+      const warn = it.id.startsWith('warn');
+      ui.dialog(warn ? 'Warning' : 'Signpost', warn ? content.warning : content.sign, () => (state = 'play'));
     } else if (it.kind === 'chest') {
       const chest = chests.get(it.id)!;
       const already = chest.opened;
@@ -178,7 +224,7 @@ async function init() {
   };
   const focus = new THREE.Vector3(hero.x, 0, hero.z);
   const center = new THREE.Vector3(map.W / 2, 0, map.H / 2);
-  const orbitPos = (t: number) => new THREE.Vector3(center.x + Math.sin(t * 0.06) * 28, 20, center.z + Math.cos(t * 0.06) * 28);
+  const orbitPos = (t: number) => new THREE.Vector3(center.x + Math.sin(t * 0.05) * 40, 28, center.z + Math.cos(t * 0.05) * 40);
   let orbitFrom = new THREE.Vector3();
   const clampFocus = (v: THREE.Vector3) => {
     v.x = THREE.MathUtils.clamp(v.x, 5, map.W - 5);
@@ -193,7 +239,9 @@ async function init() {
   const lookTmp = new THREE.Vector3();
 
   renderer.setAnimationLoop(() => {
-    const dt = Math.min(clock.getDelta(), 1 / 20);
+    let dt = Math.min(clock.getDelta(), 1 / 20);
+    // hit stop: a split-second freeze that sells the impact
+    if (hitStop > 0) { hitStop -= dt; dt *= 0.06; }
     const t = clock.elapsedTime;
     uniforms.uTime.value = t;
 
@@ -211,6 +259,15 @@ async function init() {
       if (state === 'dialog') {
         if (presses.includes('Escape')) ui.closeDialog();
         else if (presses.some((k) => INTERACT_KEYS.has(k))) ui.advance();
+      } else if (state === 'down') {
+        downT += dt;
+        if (downT > 1.4) {
+          state = 'dialog';
+          ui.dialog('Ouch!', ['You fainted… Kind villagers carried you back to the plaza. Rest up and try again!'], () => {
+            hero.revive(map.start.x, map.start.z);
+            state = 'play';
+          });
+        }
       } else if (state === 'panel' && (presses.includes('Escape') || presses.includes('KeyE'))) {
         ui.closePanel();
       } else if (state === 'fishing') {
@@ -247,6 +304,16 @@ async function init() {
     }
 
     physics.step(dt);
+    if (hero.down && state === 'play') { state = 'down'; downT = 0; }
+    enemies.update(dt, t, { x: hero.x, z: hero.z, alive: !hero.down }, camera, state === 'play' || state === 'fishing');
+    enemies.pushFrom(hero.x, hero.z, 0.34);
+    shockRings.update(dt);
+    poof.update(dt);
+    const pick = hearts.update(dt, t, hero.x, hero.z);
+    if (pick.healed && pick.at) { hero.heal(pick.healed); ui.damageNumber(pick.at, `+${pick.healed}`, 'heal', camera); }
+    // the village is a safe haven: slowly heal there
+    if (!hero.down && map.isSafe(hero.x, hero.z) && hero.hp < hero.maxHp) hero.heal(6 * dt);
+    ui.setHp(hero.hp, hero.maxHp);
     uniforms.uHit.value.z *= Math.exp(-dt * 3);
     for (const p of regrowBushes(t, (b) => Math.hypot(b.x - hero.x, b.z - hero.z) > 0.95)) physics.setPropSolid(p, true);
     leafBurst.update(dt);
@@ -316,7 +383,7 @@ async function init() {
     composer.render(dt);
   });
 
-  if (import.meta.env.DEV) Object.assign(window, { __dbg: { scene, camera, renderer, hero, map, physics, fishing, school } });
+  if (import.meta.env.DEV) Object.assign(window, { __dbg: { scene, camera, renderer, hero, map, physics, fishing, school, enemies } });
 }
 
 init().catch((err) => {

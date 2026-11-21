@@ -36,6 +36,13 @@ export class Hero {
   private clock = 0;
   /** Fired once per swing at the moment of impact (world-space centre of the hit, facing direction, combo step). */
   onSlash: (center: THREE.Vector3, forward: THREE.Vector3, combo: number) => void = () => {};
+  // health
+  maxHp = 100;
+  hp = 100;
+  private invuln = 0;
+  /** knocked flat (fainted) */
+  down = false;
+  private downT = 0;
   /** Current swing for the trail effect; null when idle. */
   swing: { combo: number; k: number; yaw: number } | null = null;
 
@@ -234,6 +241,17 @@ export class Hero {
     this.arms[0].rotation.z = -0.12;
     this.swing = null;
     if (this.attackT >= 0) this.animateAttack(dt);
+    // hurt: blink while invulnerable
+    if (this.invuln > 0) {
+      this.invuln -= dt;
+      this.model.visible = this.invuln <= 0 || Math.floor(this.invuln * 14) % 2 === 0;
+    } else this.model.visible = true;
+    // fainted: topple over
+    if (this.down) {
+      this.downT = Math.min(1, this.downT + dt * 3);
+      this.model.rotation.x = -this.downT * Math.PI / 2;
+      this.model.position.y = 0.15 * this.downT;
+    } else this.model.rotation.x = 0;
     if (this.fishing) {
       // rod raised; during a cast it swings back over the shoulder and snaps forward
       const swing = this.cast < 1 ? Math.sin(this.cast * Math.PI) * 1.4 : 0;
@@ -246,9 +264,33 @@ export class Hero {
 
   get attacking() { return this.attackT >= 0; }
 
+  /** Take a hit from (fromX, fromZ). Returns false while still invulnerable. */
+  hurt(dmg: number, fromX: number, fromZ: number): boolean {
+    if (this.invuln > 0 || this.down) return false;
+    this.hp = Math.max(0, this.hp - dmg);
+    this.invuln = 0.9;
+    const dx = this.x - fromX, dz = this.z - fromZ, d = Math.hypot(dx, dz) || 1;
+    this.body.velocity.x = (dx / d) * 7;
+    this.body.velocity.z = (dz / d) * 7;
+    this.attackT = -1;
+    if (this.hp <= 0) { this.down = true; this.downT = 0; }
+    return true;
+  }
+
+  heal(n: number) { this.hp = Math.min(this.maxHp, this.hp + n); }
+
+  /** Back on your feet at (x, z) with full health. */
+  revive(x: number, z: number) {
+    this.down = false;
+    this.hp = this.maxHp;
+    this.invuln = 1.5;
+    this.body.position.set(x, RADIUS, z);
+    this.body.velocity.set(0, 0, 0);
+  }
+
   /** Start a swing, or queue the next combo step if pressed late in the current one. */
   attack() {
-    if (this.fishing) return;
+    if (this.fishing || this.down) return;
     if (this.attackT >= 0) {
       if (this.attackT > 0.35) this.queued = true;
       return;
