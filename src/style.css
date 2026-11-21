@@ -278,15 +278,90 @@ html, body {
   15% { opacity: 1; transform: translate(var(--x), var(--y)) translate(-50%, -18px) scale(1.15); }
   100% { opacity: 0; transform: translate(var(--x), var(--y)) translate(-50%, -64px) scale(1); }
 }
-#vignette-hurt {
+
+/* ---------- minimap ---------- */
+.minimap {
+  --mm: 188px;
   position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 55%, rgba(220, 30, 30, 0.55));
-  opacity: 0;
-  transition: opacity 0.4s;
+  right: 22px;
+  top: 22px;
+  width: var(--mm);
+  height: var(--mm);
+  border-radius: 50%;
+  cursor: pointer;
+  /* gold ring: outer rim, engraved groove, inner rim */
+  box-shadow:
+    0 0 0 3px #f6d68a,
+    0 0 0 6px #a8742a,
+    0 0 0 8px #f2c66b,
+    0 0 0 10px rgba(16, 24, 58, 0.85),
+    0 10px 30px rgba(10, 16, 40, 0.45);
+  transition: width 0.35s cubic-bezier(0.3, 1.2, 0.4, 1), height 0.35s cubic-bezier(0.3, 1.2, 0.4, 1), border-radius 0.35s, top 0.35s, right 0.35s;
 }
-#vignette-hurt.on { opacity: 1; transition: none; }
+.minimap canvas { width: 100%; height: 100%; display: block; border-radius: inherit; }
+.mm-compass {
+  position: absolute;
+  left: 50%;
+  top: -17px;
+  width: 30px;
+  height: 30px;
+  transform: translateX(-50%) rotate(45deg);
+  background: linear-gradient(135deg, #ffe7a6, #c98f34);
+  border: 2px solid #6b4418;
+  border-radius: 6px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  display: grid;
+  place-items: center;
+}
+.mm-compass b { transform: rotate(-45deg); font: 800 13px var(--font-title); color: #3a2208; }
+.mm-gem {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: radial-gradient(circle at 35% 30%, #fff 0 15%, #6fd0ff 30%, #1f6aa8 75%);
+  border: 2px solid #a8742a;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(110, 200, 255, 0.6);
+}
+.mm-gem.e { right: -14px; top: 50%; transform: translateY(-50%); }
+.mm-gem.w { left: -14px; top: 50%; transform: translateY(-50%); }
+.mm-gem.s { left: 50%; bottom: -14px; transform: translateX(-50%); }
+.mm-caption {
+  position: absolute;
+  left: 50%;
+  bottom: -38px;
+  transform: translateX(-50%);
+  padding: 2px 10px;
+  font: 800 11px var(--font);
+  letter-spacing: 0.08em;
+  color: #fff8e6;
+  background: rgba(16, 24, 58, 0.7);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+/* full map */
+.minimap.full {
+  --mm: min(86vmin, 760px);
+  width: min(92vw, 980px);
+  height: min(78vh, 760px);
+  right: 50%;
+  top: 50%;
+  transform: translate(50%, -50%);
+  border-radius: 18px;
+  z-index: 5;
+  box-shadow:
+    0 0 0 4px #f6d68a,
+    0 0 0 8px #a8742a,
+    0 0 0 11px #f2c66b,
+    0 0 0 14px rgba(16, 24, 58, 0.9),
+    0 30px 80px rgba(5, 8, 20, 0.6);
+}
+.minimap.full .mm-compass { top: -20px; }
+.minimap.full .mm-caption::after { content: ' to close'; }
+@media (max-width: 600px) {
+  .minimap { --mm: 124px; right: 14px; top: 22px; }
+  .mm-caption { display: none; }
+}
 
 /* ---------- fishing ---------- */
 .fish-hint {

@@ -161,7 +161,6 @@ export class UI {
   private hpFill = $('#hud .hp-fill');
   private hpText = $('#hud .hp-text');
   private dmgRoot = $('#dmg');
-  private hurtEl = $('#vignette-hurt');
 
   showHud(name: string) {
     this.hud.hidden = false;
@@ -178,12 +177,6 @@ export class UI {
     this.hpText.textContent = `${Math.ceil(hp)} / ${max}`;
     this.hpEl.classList.toggle('mid', r <= 0.5 && r > 0.25);
     this.hpEl.classList.toggle('low', r <= 0.25);
-  }
-
-  /** Red flash at the screen edges when the hero is hit. */
-  hurtFlash() {
-    this.hurtEl.classList.add('on');
-    requestAnimationFrame(() => requestAnimationFrame(() => this.hurtEl.classList.remove('on')));
   }
 
   /** Floating number at a world position. */

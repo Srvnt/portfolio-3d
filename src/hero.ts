@@ -241,11 +241,8 @@ export class Hero {
     this.arms[0].rotation.z = -0.12;
     this.swing = null;
     if (this.attackT >= 0) this.animateAttack(dt);
-    // hurt: blink while invulnerable
-    if (this.invuln > 0) {
-      this.invuln -= dt;
-      this.model.visible = this.invuln <= 0 || Math.floor(this.invuln * 14) % 2 === 0;
-    } else this.model.visible = true;
+    // brief invulnerability after a hit (no blinking)
+    if (this.invuln > 0) this.invuln -= dt;
     // fainted: topple over
     if (this.down) {
       this.downT = Math.min(1, this.downT + dt * 3);
@@ -276,6 +273,9 @@ export class Hero {
     if (this.hp <= 0) { this.down = true; this.downT = 0; }
     return true;
   }
+
+  /** Facing angle (radians, 0 = +z / south). */
+  get heading() { return this.yaw; }
 
   heal(n: number) { this.hp = Math.min(this.maxHp, this.hp + n); }
 

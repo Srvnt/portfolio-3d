@@ -22,7 +22,14 @@
       <div class="hp"><div class="hp-fill"></div><span class="hp-text"></span></div>
     </div>
     <div id="dmg" aria-hidden="true"></div>
-    <div id="vignette-hurt" aria-hidden="true"></div>
+    <div id="minimap" class="minimap" role="button" tabindex="0" aria-label="Map (press M)" hidden>
+      <canvas></canvas>
+      <span class="mm-compass" aria-hidden="true"><b>N</b></span>
+      <span class="mm-gem e" aria-hidden="true"></span>
+      <span class="mm-gem s" aria-hidden="true"></span>
+      <span class="mm-gem w" aria-hidden="true"></span>
+      <span class="mm-caption">Map · M</span>
+    </div>
 
     <div id="hint" class="hint"><kbd>WASD</kbd> move · <kbd>Shift</kbd> run · <kbd>E</kbd> interact · <kbd>Space</kbd> attack</div>
 

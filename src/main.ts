@@ -13,6 +13,7 @@ import { School, SPECIES } from './world/fish';
 import { Fishing } from './fishing';
 import { Enemies } from './combat/enemies';
 import { Hearts } from './combat/pickups';
+import { Minimap } from './ui/minimap';
 import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples, Swoosh } from './fx/particles';
 import { uniforms } from './world/shared';
 import { Physics } from './physics';
@@ -107,7 +108,6 @@ async function init() {
   enemies.onHeroHit = (dmg, fx, fz) => {
     if (!hero.hurt(dmg, fx, fz)) return;
     ui.damageNumber(heroTop(), `-${dmg}`, 'hero', camera);
-    ui.hurtFlash();
     shake = 0.28;
     hitStop = 0.05;
     if (state === 'fishing') { fishing.stop(); state = 'play'; }
@@ -161,6 +161,8 @@ async function init() {
   let state: State = 'title';
   const input = new Input();
   const ui = new UI(content);
+  const minimap = new Minimap(map);
+  const chestMarkers = map.interactables.filter((it) => it.kind === 'chest').map((it) => ({ x: it.x, z: it.z, id: it.id }));
   const labelled = [...map.interactables, riverPrompt];
   ui.setLabels(labelled);
   ui.onPanelClose = () => { state = 'play'; input.allowDefaults = false; };
@@ -173,6 +175,7 @@ async function init() {
     input.drain();
     state = 'intro';
     ui.showHud(content.profile.name);
+    minimap.show();
   });
 
   const nearest = (): Interactable | null => {
@@ -314,6 +317,11 @@ async function init() {
     // the village is a safe haven: slowly heal there
     if (!hero.down && map.isSafe(hero.x, hero.z) && hero.hp < hero.maxHp) hero.heal(6 * dt);
     ui.setHp(hero.hp, hero.maxHp);
+    minimap.update({
+      hero: { x: hero.x, z: hero.z, heading: hero.heading },
+      enemies: enemies.list.map((e) => ({ x: e.x, z: e.z, kind: e.kind, alive: e.state !== 'dead' })),
+      chests: chestMarkers.map((c) => ({ x: c.x, z: c.z, opened: chests.get(c.id)?.opened ?? false })),
+    });
     uniforms.uHit.value.z *= Math.exp(-dt * 3);
     for (const p of regrowBushes(t, (b) => Math.hypot(b.x - hero.x, b.z - hero.z) > 0.95)) physics.setPropSolid(p, true);
     leafBurst.update(dt);
