@@ -42,6 +42,61 @@ export function createMotes(map: WorldMap, count = 260): THREE.Points {
   return pts;
 }
 
+/** Leaves and blossom petals drifting down from the village trees, tumbling as they fall. */
+export function createFallingLeaves(map: WorldMap, count = 220): THREE.Points {
+  const trees = map.props.filter((p) => p.kind === 'tree' && p.inside);
+  const pos = new Float32Array(count * 3);
+  const seed = new Float32Array(count * 2);
+  const color = new Float32Array(count * 3);
+  const palette = ['#9fd860', '#c6e27a', '#e8c65a', '#ffb3cf'].map((c) => new THREE.Color(c));
+  for (let i = 0; i < count; i++) {
+    const t = trees[Math.floor(Math.random() * trees.length)];
+    pos.set([t.x + (Math.random() - 0.5) * 1.6, 0, t.z + (Math.random() - 0.5) * 1.6], i * 3);
+    seed.set([Math.random(), 0.06 + Math.random() * 0.08], i * 2);
+    const c = palette[t.v === 3 && Math.random() < 0.8 ? 3 : Math.floor(Math.random() * 3)];
+    color.set([c.r, c.g, c.b], i * 3);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 2));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(color, 3));
+  const pts = new THREE.Points(geo, new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: { uTime: uniforms.uTime, uScale: { value: window.innerHeight * 0.5 } },
+    vertexShader: /* glsl */ `
+      attribute vec2 aSeed; attribute vec3 aColor;
+      uniform float uTime; uniform float uScale;
+      varying float vA; varying float vRot; varying vec3 vColor;
+      void main(){
+        float t = fract(uTime * aSeed.y + aSeed.x);
+        vec3 p = position;
+        p.y = 2.8 * (1.0 - t) + 0.05;
+        p.x += sin(t * 9.0 + aSeed.x * 20.0) * 0.45 + t * 0.8;
+        p.z += cos(t * 7.0 + aSeed.x * 13.0) * 0.3;
+        vA = smoothstep(0.0, 0.08, t) * (1.0 - smoothstep(0.88, 1.0, t));
+        vRot = t * 18.0 + aSeed.x * 6.28;
+        vColor = aColor;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = uScale * 0.11 / -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */ `
+      varying float vA; varying float vRot; varying vec3 vColor;
+      void main(){
+        vec2 q = gl_PointCoord - 0.5;
+        float s = sin(vRot), c = cos(vRot);
+        q = mat2(c, -s, s, c) * q;
+        q.x *= 1.0 + abs(sin(vRot * 0.5)) * 1.5; // flip as it tumbles
+        float d = length(q * vec2(2.2, 1.0));
+        if (d > 0.5) discard;
+        gl_FragColor = vec4(vColor * (0.85 + 0.3 * (0.5 - d)), vA);
+      }`,
+  }));
+  pts.frustumCulled = false;
+  return pts;
+}
+
 /** Pooled puffs: chimney smoke and footstep dust. */
 export class Puffs {
   group = new THREE.Group();

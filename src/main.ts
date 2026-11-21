@@ -8,7 +8,7 @@ import { createGrass } from './world/grass';
 import { createNature } from './world/nature';
 import { animateFlags, createBuilding } from './world/buildings';
 import { Chest, createBridges, createFountain, createLetters, createPushables, createSign } from './world/props';
-import { Butterflies, createMotes, Puffs } from './fx/particles';
+import { Butterflies, createFallingLeaves, createMotes, Puffs } from './fx/particles';
 import { uniforms } from './world/shared';
 import { Physics } from './physics';
 import { Hero } from './hero';
@@ -31,7 +31,8 @@ async function init() {
   scene.add(createTerrain(map));
   scene.add(createWater(map));
   scene.add(createGrass(map, lowEnd ? 28 : 64));
-  scene.add(createNature(map));
+  scene.add(createNature(map, lowEnd));
+  scene.add(createFallingLeaves(map, lowEnd ? 120 : 240));
   scene.add(createBridges(map));
   scene.add(createFountain());
   const chimneys: THREE.Vector3[] = [];
