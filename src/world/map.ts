@@ -62,8 +62,6 @@ export class WorldMap {
   /** Free spots for pushable crates and barrels. */
   crateSpots: { x: number; z: number; kind: 'crate' | 'barrel' }[] = [];
   start = { x: 22, z: 23.5 };
-  /** Docks on the riverbank: where the hero stands, which way the water is, and where the bobber lands. */
-  fishingSpots: { x: number; z: number; dir: 1 | -1; bobber: { x: number; z: number } }[] = [];
   private center: Float32Array = new Float32Array(0);
 
   /**
@@ -150,18 +148,15 @@ export class WorldMap {
       this.center[z] = n ? sum / n : W / 2;
     }
 
-    // riverside footpaths leading to three fishing docks
+    // riverside footpaths down to the water (you can fish from any bank; see riverSpot())
     const westBank = (z: number) => { let x = 0; while (x < W && this.tiles[this.i(x, z)] !== Tile.Water) x++; return x - 1; };
     const eastBank = (z: number) => { let x = W - 1; while (x >= 0 && this.tiles[this.i(x, z)] !== Tile.Water) x--; return x + 1; };
-    const riverside = (z0: number, z1: number, spotZ: number, bank: (z: number) => number, dir: 1 | -1) => {
+    const riverside = (z0: number, z1: number, bank: (z: number) => number) => {
       for (let z = z0; z <= z1; z++) { const bx = bank(z); this.road(bx, z, bx, z); }
-      const bx = bank(spotZ);
-      this.fishingSpots.push({ x: bx + 0.5, z: spotZ + 0.5, dir, bobber: { x: bx + 0.5 + dir * 1.9, z: spotZ + 0.5 } });
     };
-    riverside(6, 16, 6, westBank, 1);
-    riverside(19, 26, 26, westBank, 1);
-    riverside(19, 28, 28, eastBank, -1);
-    // (docks are scenery now — you can fish from any bank; see riverSpot())
+    riverside(6, 16, westBank);
+    riverside(19, 26, westBank);
+    riverside(19, 28, eastBank);
 
     const trail = (x0: number, z0: number, x1: number, z1: number) =>
       this.rect(x0, z0, x1, z1, (_x, _z, i) => (this.reserved[i] = 1));

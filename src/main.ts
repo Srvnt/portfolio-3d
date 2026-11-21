@@ -8,7 +8,7 @@ import { createGrass } from './world/grass';
 import { createNature } from './world/nature';
 import { createGroundDetails } from './world/decals';
 import { animateFlags, createBuilding } from './world/buildings';
-import { Chest, createBridges, createDocks, createFountain, createLetters, createPushables, createSign } from './world/props';
+import { Chest, createBridges, createFountain, createLetters, createPushables, createSign } from './world/props';
 import { School, SPECIES } from './world/fish';
 import { Fishing } from './fishing';
 import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples } from './fx/particles';
@@ -38,7 +38,6 @@ async function init() {
   scene.add(createGroundDetails(map));
   scene.add(createFallingLeaves(map, lowEnd ? 120 : 240));
   scene.add(createBridges(map));
-  scene.add(createDocks(map));
   scene.add(createFountain());
   const chimneys: THREE.Vector3[] = [];
   const town = new THREE.Group();
