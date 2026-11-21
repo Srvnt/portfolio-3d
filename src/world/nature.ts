@@ -201,8 +201,10 @@ function trunkGeometry(sp: Species, pine: boolean): Geo {
 
 // ------------------------------------------------------------------ textures
 
-/** A clump of rounded leaves, white so vertex colours tint it. */
-function leafTexture(): THREE.CanvasTexture {
+/** A clump of rounded leaves, white so vertex colours tint it. Shared by trees, bushes and ivy. */
+let leafTexCache: THREE.CanvasTexture | null = null;
+export function leafTexture(): THREE.CanvasTexture {
+  if (leafTexCache) return leafTexCache;
   const { canvas, ctx } = makeCanvas(256, 256);
   const r = rng(7);
   for (let i = 0; i < 34; i++) {
@@ -228,7 +230,8 @@ function leafTexture(): THREE.CanvasTexture {
     ctx.beginPath(); ctx.moveTo(0, -len * 0.85); ctx.lineTo(0, len * 0.9); ctx.stroke();
     ctx.restore();
   }
-  return canvasTexture(canvas);
+  leafTexCache = canvasTexture(canvas);
+  return leafTexCache;
 }
 
 /** Fan of pine needles. */
@@ -321,7 +324,17 @@ function rockGeometry(): Geo {
   const g = wobble(new THREE.DodecahedronGeometry(0.42, 0), 0.08, 21);
   g.scale(1, 0.65, 0.9);
   g.translate(0, 0.18, 0);
-  return tint(g, '#9aa0a6', 0.1);
+  const t = tint(g, '#9aa0a6', 0.1);
+  t.computeVertexNormals();
+  // moss on the upward-facing facets
+  const n = t.attributes.normal, c = t.attributes.color;
+  const moss = new THREE.Color('#5d8a35');
+  for (let i = 0; i < n.count; i += 3) {
+    if (n.getY(i) < 0.55 || hash2(i, 9, 9) < 0.3) continue;
+    const k = 0.85 + hash2(i, 3, 9) * 0.3;
+    for (let v = 0; v < 3; v++) c.setXYZ(i + v, moss.r * k, moss.g * k, moss.b * k);
+  }
+  return t;
 }
 
 /** Little flowers: instanced stems + coloured heads. */

@@ -6,6 +6,7 @@ import { createTerrain } from './world/terrain';
 import { createWater } from './world/water';
 import { createGrass } from './world/grass';
 import { createNature } from './world/nature';
+import { createGroundDetails } from './world/decals';
 import { animateFlags, createBuilding } from './world/buildings';
 import { Chest, createBridges, createFountain, createLetters, createPushables, createSign } from './world/props';
 import { Butterflies, createFallingLeaves, createMotes, Puffs } from './fx/particles';
@@ -32,6 +33,7 @@ async function init() {
   scene.add(createWater(map));
   scene.add(createGrass(map, lowEnd ? 28 : 64));
   scene.add(createNature(map, lowEnd));
+  scene.add(createGroundDetails(map));
   scene.add(createFallingLeaves(map, lowEnd ? 120 : 240));
   scene.add(createBridges(map));
   scene.add(createFountain());

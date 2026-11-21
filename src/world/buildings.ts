@@ -1,10 +1,115 @@
 import * as THREE from 'three';
 import { Building, ROOF_H, WALL_H } from './map';
 import { canvasTexture, makeCanvas, standard } from './shared';
+import { rng } from '../core/random';
+import { createIvy } from './decals';
 
 const PLINTH = 0.3;
 const PLASTER = '#f3ead2';
 const TIMBER = '#6b4428';
+
+/** Aged plaster: dirt rising from the ground, rain streaks, cracks, and patches where brick shows through. */
+function weatheredPlaster(seed: number): THREE.CanvasTexture {
+  const S = 512;
+  const { canvas, ctx } = makeCanvas(S, S);
+  const r = rng(seed);
+  ctx.fillStyle = PLASTER;
+  ctx.fillRect(0, 0, S, S);
+  // soft tonal blotches
+  for (let i = 0; i < 60; i++) {
+    const x = r() * S, y = r() * S, rad = 20 + r() * 60;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    g.addColorStop(0, r() < 0.5 ? 'rgba(220,205,175,0.35)' : 'rgba(255,250,235,0.35)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  // rain streaks from the top
+  for (let i = 0; i < 26; i++) {
+    const x = r() * S, len = 60 + r() * 180, wdt = 3 + r() * 8;
+    const g = ctx.createLinearGradient(0, 0, 0, len);
+    g.addColorStop(0, 'rgba(120,110,85,0.28)');
+    g.addColorStop(1, 'rgba(120,110,85,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, 0, wdt, len);
+  }
+  // damp, mossy dirt along the bottom
+  const dirt = ctx.createLinearGradient(0, S, 0, S * 0.62);
+  dirt.addColorStop(0, 'rgba(92,98,58,0.6)');
+  dirt.addColorStop(0.45, 'rgba(120,110,80,0.25)');
+  dirt.addColorStop(1, 'rgba(120,110,80,0)');
+  ctx.fillStyle = dirt;
+  ctx.fillRect(0, S * 0.62, S, S * 0.38);
+  // exposed brick patches
+  for (let i = 0; i < 3; i++) {
+    const px = r() * (S - 120), py = 60 + r() * (S - 200), pw = 60 + r() * 60, ph = 40 + r() * 40;
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(px + pw / 2, py + ph / 2, pw / 2, ph / 2, (r() - 0.5) * 0.4, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = '#8a6a55';
+    ctx.fillRect(px, py, pw, ph);
+    for (let by = py; by < py + ph; by += 12) {
+      const off = ((by - py) / 12) % 2 ? 12 : 0;
+      for (let bx = px - off; bx < px + pw; bx += 24) {
+        ctx.fillStyle = r() < 0.5 ? '#b36b4c' : '#a35e42';
+        ctx.fillRect(bx + 1, by + 1, 22, 10);
+      }
+    }
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(160,145,115,0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(px + pw / 2, py + ph / 2, pw / 2, ph / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // hairline cracks
+  ctx.strokeStyle = 'rgba(90,80,60,0.45)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 5; i++) {
+    let x = r() * S, y = r() * S;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let k = 0; k < 6; k++) { x += (r() - 0.5) * 30; y += 8 + r() * 18; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  return canvasTexture(canvas);
+}
+
+/** Moss patches for a roof: heavy along the eaves and ridge, scattered elsewhere. Transparent. */
+function mossTexture(seed: number): THREE.CanvasTexture {
+  const S = 256;
+  const { canvas, ctx } = makeCanvas(S, S);
+  const r = rng(seed);
+  const blob = (x: number, y: number, rad: number) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    const tone = r() < 0.5 ? '78,112,48' : '58,90,40';
+    g.addColorStop(0, `rgba(${tone},0.85)`);
+    g.addColorStop(0.5, `rgba(${tone},0.55)`);
+    g.addColorStop(1, `rgba(${tone},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  // canvas bottom = eave (uv v=0), top = ridge
+  // clustered patches along the eaves (not a continuous band)
+  for (let c = 0; c < 5; c++) {
+    const cx = r() * S;
+    for (let i = 0; i < 4; i++) blob(cx + (r() - 0.5) * 40, S - r() * 26, 6 + r() * 13);
+  }
+  for (let i = 0; i < 6; i++) blob(r() * S, r() * 16, 5 + r() * 9);
+  for (let i = 0; i < 6; i++) blob(r() * S, 40 + r() * (S - 90), 4 + r() * 10);
+  // bright speckles on top of the moss
+  for (let i = 0; i < 500; i++) {
+    const x = r() * S, y = r() * S;
+    const a = ctx.getImageData(x | 0, y | 0, 1, 1).data[3];
+    if (a < 120) continue;
+    ctx.fillStyle = r() < 0.5 ? 'rgba(170,205,100,0.9)' : 'rgba(50,80,35,0.9)';
+    ctx.fillRect(x, y, 2, 2);
+  }
+  return canvasTexture(canvas);
+}
 
 /** Soft shingle texture tinted per roof colour. */
 function shingleTexture(color: string): THREE.CanvasTexture {
@@ -77,7 +182,8 @@ export function createBuilding(b: Building): BuildingResult {
     g.add(m);
     return m;
   };
-  const plaster = standard({ color: PLASTER, flatShading: false, roughness: 0.95 });
+  const seed = b.x0 * 31 + b.z0 * 7;
+  const plaster = standard({ map: weatheredPlaster(seed), flatShading: false, roughness: 0.95 });
   const timber = standard({ color: TIMBER });
   const stone = standard({ color: '#a9a397' });
   const accent = standard({ color: b.accent });
@@ -156,6 +262,30 @@ export function createBuilding(b: Building): BuildingResult {
   const roof = new THREE.Mesh(roofGeometry(w, d, wallTop, ROOF_H, 0.45), [roofMat, plaster]);
   roof.castShadow = roof.receiveShadow = true;
   g.add(roof);
+
+  // moss layer over both roof slopes (non-repeating UVs so patches don't tile)
+  const slopes = roof.geometry.attributes.position.array.slice(0, 12 * 3) as Float32Array;
+  const mossGeo = new THREE.BufferGeometry();
+  mossGeo.setAttribute('position', new THREE.Float32BufferAttribute(slopes, 3));
+  const src = roof.geometry.attributes.uv.array as Float32Array;
+  let maxU = 0, maxV = 0;
+  for (let i = 0; i < 12; i++) { maxU = Math.max(maxU, src[i * 2]); maxV = Math.max(maxV, src[i * 2 + 1]); }
+  const mossUv = new Float32Array(24);
+  for (let i = 0; i < 12; i++) {
+    // back slope runs right-to-left; mirror u and offset so the two slopes differ
+    mossUv[i * 2] = (src[i * 2] / maxU) * 0.5 + (i >= 6 ? 0.5 : 0);
+    mossUv[i * 2 + 1] = src[i * 2 + 1] / maxV;
+  }
+  mossGeo.setAttribute('uv', new THREE.Float32BufferAttribute(mossUv, 2));
+  mossGeo.computeVertexNormals();
+  const moss = new THREE.Mesh(mossGeo, new THREE.MeshStandardMaterial({
+    map: mossTexture(seed + 5), transparent: true, alphaTest: 0.08, roughness: 1,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false,
+  }));
+  moss.receiveShadow = true;
+  g.add(moss);
+
+  g.add(createIvy(b, seed + 9));
   const ridge = add(new THREE.CylinderGeometry(0.1, 0.1, w + 1.0, 6), standard({ color: new THREE.Color(b.roof).multiplyScalar(0.7) }), 0, wallTop + ROOF_H + 0.02, 0);
   ridge.rotation.z = Math.PI / 2;
 

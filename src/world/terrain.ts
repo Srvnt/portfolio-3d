@@ -101,6 +101,78 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
   ctx.stroke();
   ctx.restore();
 
+  // ---- ground decals ----
+  const dr = rng(99);
+  // moss creeping into the plaza from its edges, plus a few cracked stones
+  blurred(ctx, 3, (l) => {
+    for (let i = 0; i < 140; i++) {
+      const edge = Math.floor(dr() * 4);
+      const t = dr();
+      const inset = Math.pow(dr(), 2.5) * 2.2;
+      const x = (edge === 0 ? px0 + inset : edge === 1 ? px1 - inset : px0 + t * (px1 - px0)) * PPU;
+      const y = (edge === 2 ? pz0 + inset : edge === 3 ? pz1 - inset : pz0 + t * (pz1 - pz0)) * PPU;
+      l.fillStyle = dr() < 0.5 ? 'rgba(92,130,52,0.75)' : 'rgba(70,108,44,0.7)';
+      l.beginPath();
+      l.arc(x, y, 3 + dr() * 9, 0, Math.PI * 2);
+      l.fill();
+    }
+  });
+  ctx.strokeStyle = 'rgba(95,85,68,0.55)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 14; i++) {
+    let x = (px0 + 0.5 + dr() * (px1 - px0 - 1)) * PPU, y = (pz0 + 0.5 + dr() * (pz1 - pz0 - 1)) * PPU;
+    if (Math.hypot(x / PPU - FOUNTAIN.x, y / PPU - FOUNTAIN.z) < 1.5) continue;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let k = 0; k < 4; k++) { x += (dr() - 0.5) * 22; y += (dr() - 0.5) * 22; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  // damp ring around the fountain
+  blurred(ctx, 8, (l) => {
+    l.strokeStyle = 'rgba(80,90,85,0.35)';
+    l.lineWidth = 0.7 * PPU;
+    l.beginPath();
+    l.arc(FOUNTAIN.x * PPU, FOUNTAIN.z * PPU, 1.55 * PPU, 0, Math.PI * 2);
+    l.stroke();
+  });
+  // bare earth and root shadow at tree trunks, dirt patches in the meadow
+  blurred(ctx, 5, (l) => {
+    for (const p of map.props) {
+      if (!p.inside || p.kind === 'rock') continue;
+      l.fillStyle = 'rgba(92,70,42,0.75)';
+      l.beginPath();
+      l.ellipse(p.x * PPU, p.z * PPU, 0.5 * PPU, 0.42 * PPU, dr() * 3, 0, Math.PI * 2);
+      l.fill();
+    }
+    for (let i = 0; i < 40; i++) {
+      const x = dr() * map.W, z = dr() * map.H;
+      if (map.tile(Math.floor(x), Math.floor(z)) !== Tile.Grass) continue;
+      l.fillStyle = 'rgba(110,88,55,0.45)';
+      l.beginPath();
+      l.ellipse(x * PPU, z * PPU, (0.3 + dr() * 0.5) * PPU, (0.2 + dr() * 0.3) * PPU, dr() * 3, 0, Math.PI * 2);
+      l.fill();
+    }
+  });
+  // fallen leaves on paths and plaza near trees
+  const leafCols = ['#8fbf4a', '#c9b04a', '#d98a3a', '#b5653a', '#6fa040'];
+  for (const p of map.props) {
+    if (!p.inside || p.kind !== 'tree') continue;
+    for (let k = 0; k < 40; k++) {
+      const a = dr() * Math.PI * 2, d = Math.sqrt(dr()) * 2.6;
+      const x = p.x + Math.cos(a) * d, z = p.z + Math.sin(a) * d;
+      const t = map.tile(Math.floor(x), Math.floor(z));
+      if (t !== Tile.Path && !(x > px0 && x < px1 && z > pz0 && z < pz1) && d > 0.6) continue;
+      ctx.save();
+      ctx.translate(x * PPU, z * PPU);
+      ctx.rotate(dr() * Math.PI * 2);
+      ctx.fillStyle = leafCols[Math.floor(dr() * leafCols.length)];
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 2.2, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   // contact shadows (fake ambient occlusion)
   blurred(ctx, 14, (l) => {
     l.fillStyle = 'rgba(20, 30, 10, 0.45)';

@@ -35,15 +35,20 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
       }
     return false;
   };
+  // trees keep a small clearing of bare earth (where mushrooms grow)
+  const trunks = new Map<number, { x: number; z: number }>();
+  for (const p of map.props) if (p.inside && p.kind === 'tree') trunks.set(map.i(Math.floor(p.x), Math.floor(p.z)), p);
   for (let z = 0; z < map.H; z++)
     for (let x = 0; x < map.W; x++) {
       const i = map.i(x, z);
       if (map.tiles[i] !== Tile.Grass || map.occ[i] === Occ.Building || map.occ[i] === Occ.Fixture) continue;
       if (x >= 18 && x <= 25 && z >= 14 && z <= 21) continue; // plaza
+      const trunk = trunks.get(i);
       for (let k = 0; k < density; k++) {
         const px = x + hash2(x * 31 + k, z, 1);
         const pz = z + hash2(x, z * 31 + k, 2);
         if (nearNonGrass(x, z, px, pz)) continue;
+        if (trunk && Math.hypot(px - trunk.x, pz - trunk.z) < 0.55) continue;
         spots.push(px, pz);
       }
     }
