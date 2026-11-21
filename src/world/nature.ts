@@ -1,9 +1,16 @@
 import * as THREE from 'three';
-import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Prop, WorldMap } from './map';
 import { hash2, rng } from '../core/random';
 import { heightAt } from './terrain';
 import { addWind, canvasTexture, makeCanvas, standard, tint, uniforms, wobble } from './shared';
+
+/*
+ * Trees are built entirely from leaf clusters (alpha cards) — no solid canopy.
+ * Cards fill each foliage volume, denser and brighter toward the outside,
+ * darker inside, so the tree reads as a full, airy crown with branches
+ * peeking through.
+ */
 
 type Geo = THREE.BufferGeometry;
 const SUN = new THREE.Vector3(-0.45, 0.8, 0.4).normalize();
@@ -26,218 +33,236 @@ interface Species {
 }
 
 const BROADLEAF: Blob[] = [
-  { r: 0.9, x: 0, y: 1.95, z: 0 },
-  { r: 0.66, x: 0.58, y: 1.62, z: 0.18 },
-  { r: 0.62, x: -0.52, y: 1.72, z: -0.12 },
-  { r: 0.6, x: 0.06, y: 2.55, z: -0.05 },
-  { r: 0.52, x: -0.22, y: 1.5, z: 0.52 },
-  { r: 0.5, x: 0.32, y: 2.2, z: -0.48 },
+  { r: 0.95, x: 0, y: 1.95, z: 0 },
+  { r: 0.7, x: 0.6, y: 1.6, z: 0.2 },
+  { r: 0.66, x: -0.55, y: 1.72, z: -0.12 },
+  { r: 0.64, x: 0.06, y: 2.6, z: -0.05 },
+  { r: 0.55, x: -0.24, y: 1.5, z: 0.55 },
+  { r: 0.52, x: 0.34, y: 2.25, z: -0.5 },
 ];
 
 const SPECIES: Species[] = [
-  { trunkH: 1.45, trunk: '#6e4a2c', blobs: BROADLEAF, dark: '#1f4f26', mid: '#3d8c38', light: '#9cd866', cards: 46, cardSize: 0.62 },
-  { trunkH: 1.45, trunk: '#7a5232', blobs: BROADLEAF.map((b) => ({ ...b, r: b.r * 1.05 })), dark: '#33641e', mid: '#5fa63a', light: '#c4e67a', cards: 46, cardSize: 0.62 },
-  // index 2 = conifer (built separately)
-  { trunkH: 0.8, trunk: '#5e3d24', blobs: [], dark: '#173f2e', mid: '#2e7450', light: '#7cc08a', cards: 0, cardSize: 0 },
-  { trunkH: 1.35, trunk: '#6a4630', blobs: BROADLEAF.map((b) => ({ ...b, r: b.r * 0.95 })), dark: '#b04c78', mid: '#ee8ab4', light: '#ffe0ee', cards: 52, cardSize: 0.55 },
+  { trunkH: 1.5, trunk: '#6e4a2c', blobs: BROADLEAF, dark: '#1b4a22', mid: '#3d8c38', light: '#a2dc6a', cards: 230, cardSize: 0.88 },
+  { trunkH: 1.5, trunk: '#7a5232', blobs: BROADLEAF.map((b) => ({ ...b, r: b.r * 1.05 })), dark: '#2e5e1c', mid: '#5fa63a', light: '#c8ea7e', cards: 240, cardSize: 0.88 },
+  // pine: tiers instead of blobs (r = radius, y = tier centre, x = tier height)
+  { trunkH: 2.9, trunk: '#5e3d24', blobs: [
+    { r: 1.3, x: 1.25, y: 1.15, z: 0 }, { r: 1.05, x: 1.1, y: 1.75, z: 0 },
+    { r: 0.8, x: 1.0, y: 2.3, z: 0 }, { r: 0.5, x: 0.85, y: 2.8, z: 0 },
+  ], dark: '#1a4a34', mid: '#3a8a5c', light: '#9ad8a4', cards: 230, cardSize: 0.72 },
+  { trunkH: 1.45, trunk: '#6a4630', blobs: BROADLEAF.map((b) => ({ ...b, r: b.r * 0.95 })), dark: '#a8466f', mid: '#ee8ab4', light: '#ffe2ef', cards: 250, cardSize: 0.78 },
 ];
 
-/** Colour a surface point: dark underside → mid → sunlit top. */
-function shade(sp: Species, n: THREE.Vector3, h: number, jitter: number, out: THREE.Color) {
+/** Colour a leaf: dark inside/underneath → mid → sunlit top. */
+function shade(sp: Species, n: THREE.Vector3, h: number, depth: number, jitter: number, out: THREE.Color) {
   const dark = new THREE.Color(sp.dark), mid = new THREE.Color(sp.mid), light = new THREE.Color(sp.light);
   const ndl = Math.max(0, n.dot(SUN));
-  out.copy(dark).lerp(mid, Math.min(1, smooth(0, 0.65, h) * 0.75 + ndl * 0.35));
-  out.lerp(light, Math.pow(ndl, 2.2) * (0.35 + h * 0.5));
-  out.multiplyScalar(0.92 + jitter * 0.16);
+  out.copy(dark).lerp(mid, Math.min(1, smooth(0, 0.65, h) * 0.6 + ndl * 0.35 + depth * 0.25));
+  out.lerp(light, Math.pow(ndl, 2) * (0.3 + h * 0.45) * depth);
+  // self-shadowing: leaves deep inside the crown are darker
+  out.multiplyScalar((0.72 + depth * 0.3) * (0.9 + jitter * 0.2));
   return out;
 }
 
-function canopyCenter(blobs: Blob[]) {
+function crownCenter(blobs: Blob[]) {
   const c = new THREE.Vector3();
   let w = 0;
   for (const b of blobs) { c.add(tmp.set(b.x, b.y, b.z).multiplyScalar(b.r)); w += b.r; }
   return c.divideScalar(w);
 }
 
-/** Soft, lumpy canopy: smooth spheres with cloud-like bumps and blended normals. */
-function canopyGeometry(sp: Species, detail: number, seed: number): Geo {
-  const center = canopyCenter(sp.blobs);
-  const bottom = Math.min(...sp.blobs.map((b) => b.y - b.r));
-  const top = Math.max(...sp.blobs.map((b) => b.y + b.r));
-  const parts = sp.blobs.map((b, i) => {
-    let g: Geo = new THREE.IcosahedronGeometry(b.r, detail);
-    g.deleteAttribute('uv');
-    g.deleteAttribute('normal');
-    g = mergeVertices(g);
-    const p = g.attributes.position;
-    const normals = new Float32Array(p.count * 3);
-    for (let k = 0; k < p.count; k++) {
-      const v = new THREE.Vector3(p.getX(k), p.getY(k), p.getZ(k));
-      const n = v.clone().normalize();
-      const bump = (Math.sin(v.x * 5 + seed + i) + Math.sin(v.y * 6 - seed) + Math.sin(v.z * 5.5 + i * 2)) / 3;
-      v.addScaledVector(n, bump * b.r * 0.13);
-      p.setXYZ(k, v.x + b.x, v.y + b.y, v.z + b.z);
-      normals.set([n.x, n.y, n.z], k * 3);
-    }
-    g.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-    return g;
-  });
-  const g = mergeGeometries(parts)!;
-  const p = g.attributes.position;
-  const nrm = g.attributes.normal;
-  const colors = new Float32Array(p.count * 3);
-  const c = new THREE.Color();
-  for (let k = 0; k < p.count; k++) {
-    const v = new THREE.Vector3(p.getX(k), p.getY(k), p.getZ(k));
-    // blend per-blob normal with whole-canopy normal: soft "cotton" shading that keeps clumps readable
-    const n = new THREE.Vector3(nrm.getX(k), nrm.getY(k), nrm.getZ(k)).multiplyScalar(0.45)
-      .add(v.clone().sub(center).normalize().multiplyScalar(0.55)).normalize();
-    nrm.setXYZ(k, n.x, n.y, n.z);
-    shade(sp, n, (v.y - bottom) / (top - bottom), hash2(k, seed, 3), c);
-    colors.set([c.r, c.g, c.b], k * 3);
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+/** One leaf card at `pos`, facing `dir`, coloured and lit as part of the crown. */
+function card(pos: THREE.Vector3, dir: THREE.Vector3, size: number, normal: THREE.Vector3, color: THREE.Color, roll: number): Geo {
+  const g = new THREE.PlaneGeometry(size, size);
+  const m = new THREE.Matrix4();
+  m.lookAt(dir, new THREE.Vector3(), Math.abs(dir.y) > 0.95 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0));
+  m.multiply(new THREE.Matrix4().makeRotationZ(roll));
+  m.setPosition(pos);
+  g.applyMatrix4(m);
+  const nArr = new Float32Array(12);
+  const cArr = new Float32Array(12);
+  for (let v = 0; v < 4; v++) { nArr.set([normal.x, normal.y, normal.z], v * 3); cArr.set([color.r, color.g, color.b], v * 3); }
+  g.setAttribute('normal', new THREE.BufferAttribute(nArr, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(cArr, 3));
   return g;
 }
 
-/** Leaf clusters (alpha cards) scattered over the canopy surface, facing outward. */
-function cardGeometry(sp: Species, count: number, seed: number): Geo {
+/** Broadleaf/bush crown: cards filling each blob, biased toward the surface. */
+function crownCards(sp: Species, count: number, seed: number): Geo {
   const r = rng(seed);
-  const center = canopyCenter(sp.blobs);
+  const center = crownCenter(sp.blobs);
   const bottom = Math.min(...sp.blobs.map((b) => b.y - b.r));
   const top = Math.max(...sp.blobs.map((b) => b.y + b.r));
   const weights = sp.blobs.map((b) => b.r * b.r);
   const total = weights.reduce((a, b) => a + b, 0);
-  const up = new THREE.Vector3(0, 1, 0);
-  const m = new THREE.Matrix4();
-  const roll = new THREE.Matrix4();
   const c = new THREE.Color();
   const cards: Geo[] = [];
   for (let k = 0; k < count; k++) {
     let pick = r() * total;
     let b = sp.blobs[0];
     for (let i = 0; i < sp.blobs.length; i++) { pick -= weights[i]; if (pick <= 0) { b = sp.blobs[i]; break; } }
-    const y = r() * 1.6 - 0.6;
+    const y = r() * 1.75 - 0.75;
     const th = r() * Math.PI * 2;
     const ring = Math.sqrt(1 - y * y);
     const dir = new THREE.Vector3(ring * Math.cos(th), y, ring * Math.sin(th));
-    const pos = new THREE.Vector3(b.x, b.y, b.z).addScaledVector(dir, b.r * (0.88 + r() * 0.22));
-    const s = sp.cardSize * (0.75 + r() * 0.5);
-    const g = new THREE.PlaneGeometry(s, s);
-    m.lookAt(dir, new THREE.Vector3(), Math.abs(dir.y) > 0.95 ? new THREE.Vector3(1, 0, 0) : up);
-    m.multiply(roll.makeRotationZ(r() * Math.PI * 2));
-    m.setPosition(pos);
-    g.applyMatrix4(m);
-    const n = dir.clone().multiplyScalar(0.4).add(pos.clone().sub(center).normalize().multiplyScalar(0.6)).normalize();
-    const nArr = new Float32Array(12);
-    const cArr = new Float32Array(12);
-    shade(sp, n, (pos.y - bottom) / (top - bottom), r(), c);
-    c.multiplyScalar(1.08);
-    for (let v = 0; v < 4; v++) { nArr.set([n.x, n.y, n.z], v * 3); cArr.set([c.r, c.g, c.b], v * 3); }
-    g.setAttribute('normal', new THREE.BufferAttribute(nArr, 3));
-    g.setAttribute('color', new THREE.BufferAttribute(cArr, 3));
-    cards.push(g);
+    // depth 1 = outer surface, lower = inside the crown
+    const depth = 1 - Math.pow(r(), 2.2) * 0.6;
+    const pos = new THREE.Vector3(b.x, b.y, b.z).addScaledVector(dir, b.r * depth);
+    const n = dir.clone().multiplyScalar(0.45).add(pos.clone().sub(center).normalize().multiplyScalar(0.55)).normalize();
+    shade(sp, n, (pos.y - bottom) / (top - bottom), depth, r(), c);
+    // tilt cards a little off the normal so the crown looks ruffled
+    const face = dir.clone().add(new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).multiplyScalar(0.9)).normalize();
+    cards.push(card(pos, face, sp.cardSize * (0.7 + r() * 0.6) * (0.75 + depth * 0.35), n, c, r() * Math.PI * 2));
   }
   return mergeGeometries(cards)!;
 }
 
-/** Slightly bent trunk with two branches reaching into the canopy. */
-function trunkGeometry(sp: Species): Geo {
+/** Pine: cards on drooping cone tiers, pointing outward and down like boughs. */
+function pineCards(sp: Species, count: number, seed: number): Geo {
+  const r = rng(seed);
+  const c = new THREE.Color();
+  const cards: Geo[] = [];
+  const tiers = sp.blobs;
+  const weights = tiers.map((t) => t.r * t.r);
+  const total = weights.reduce((a, b) => a + b, 0);
+  for (let k = 0; k < count; k++) {
+    let pick = r() * total;
+    let t = tiers[0];
+    for (let i = 0; i < tiers.length; i++) { pick -= weights[i]; if (pick <= 0) { t = tiers[i]; break; } }
+    const h = t.x;
+    const f = Math.pow(r(), 0.7); // more cards near the wide bottom of each tier
+    const a = r() * Math.PI * 2;
+    const depth = 1 - Math.pow(r(), 2) * 0.5;
+    const rad = t.r * (1 - (1 - f) * 0.85) * depth;
+    const y = t.y + h / 2 - f * h - (f > 0.8 ? (f - 0.8) * 0.5 : 0);
+    const pos = new THREE.Vector3(Math.cos(a) * rad, y, Math.sin(a) * rad);
+    const out = new THREE.Vector3(Math.cos(a), 0.55, Math.sin(a)).normalize();
+    const face = out.clone().add(new THREE.Vector3(0, -0.6, 0)).normalize();
+    shade(sp, out, (y - 0.4) / 2.8, depth, r(), c);
+    cards.push(card(pos, face, sp.cardSize * (0.7 + r() * 0.5) * (0.8 + f * 0.5), out, c, r() * 0.6 - 0.3 + Math.PI));
+  }
+  // a little tuft on the very top
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    const out = new THREE.Vector3(Math.cos(a) * 0.3, 1, Math.sin(a) * 0.3).normalize();
+    shade(sp, out, 1, 1, r(), c);
+    cards.push(card(new THREE.Vector3(Math.cos(a) * 0.08, 3.15, Math.sin(a) * 0.08), out, sp.cardSize * 0.55, out, c, Math.PI));
+  }
+  return mergeGeometries(cards)!;
+}
+
+/** A tapered cylinder from a to b. */
+function limb(a: THREE.Vector3, b: THREE.Vector3, r0: number, r1: number, seg = 6): Geo {
+  const len = a.distanceTo(b);
+  const g = new THREE.CylinderGeometry(r1, r0, len, seg);
+  g.translate(0, len / 2, 0);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+  g.applyQuaternion(q);
+  g.translate(a.x, a.y, a.z);
+  g.deleteAttribute('uv');
+  return g;
+}
+
+/** Bent trunk with root flare and a branch reaching into each foliage clump. */
+function trunkGeometry(sp: Species, pine: boolean): Geo {
   const h = sp.trunkH;
-  const parts: Geo[] = [];
-  const main = new THREE.CylinderGeometry(0.09, 0.18, h, 9, 4);
+  const main = new THREE.CylinderGeometry(pine ? 0.05 : 0.08, pine ? 0.16 : 0.18, h, 9, 5);
   main.translate(0, h / 2, 0);
+  main.deleteAttribute('uv');
   const p = main.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const y = p.getY(i);
-    p.setX(i, p.getX(i) + Math.sin((y / h) * Math.PI) * 0.07);
-    if (y < 0.12) { p.setX(i, p.getX(i) * 1.35); p.setZ(i, p.getZ(i) * 1.35); } // root flare
+    p.setX(i, p.getX(i) + Math.sin((y / h) * Math.PI) * (pine ? 0.02 : 0.07));
+    if (y < 0.12) { p.setX(i, p.getX(i) * 1.4); p.setZ(i, p.getZ(i) * 1.4); }
   }
   main.computeVertexNormals();
-  parts.push(main);
-  for (const [rz, ry] of [[0.75, 0.4], [-0.7, 2.6]]) {
-    const br = new THREE.CylinderGeometry(0.035, 0.07, 0.75, 6);
-    br.translate(0, 0.37, 0);
-    br.rotateZ(rz);
-    br.rotateY(ry);
-    br.translate(0, h * 0.78, 0);
-    parts.push(br);
+  const parts: Geo[] = [main];
+  if (!pine) {
+    for (const b of sp.blobs) {
+      if (b.x === 0 && b.z === 0) continue;
+      const from = new THREE.Vector3(Math.sin((Math.min(b.y - 0.3, h * 0.9) / h) * Math.PI) * 0.07, Math.min(b.y - 0.35, h * 0.88), 0);
+      const to = new THREE.Vector3(b.x * 0.85, b.y + 0.05, b.z * 0.85);
+      parts.push(limb(from, to, 0.06, 0.025));
+      // a small twig off each branch
+      const mid = from.clone().lerp(to, 0.55);
+      parts.push(limb(mid, mid.clone().add(new THREE.Vector3(-b.z * 0.4, 0.35, b.x * 0.4)), 0.025, 0.01, 4));
+    }
   }
-  const g = mergeGeometries(parts.map((x) => { x.deleteAttribute('uv'); return x; }))!;
+  const g = mergeGeometries(parts)!;
   const col = new THREE.Color(sp.trunk);
   const pos = g.attributes.position;
   const colors = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
-    const k = 0.7 + Math.min(1, pos.getY(i) / h) * 0.35;
+    const k = 0.65 + Math.min(1, pos.getY(i) / h) * 0.4;
     colors.set([col.r * k, col.g * k, col.b * k], i * 3);
   }
   g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   return g;
 }
 
-/** Layered pine with jagged, drooping skirts and smooth shading. */
-function coniferGeometry(sp: Species): Geo {
-  const tiers = [[1.0, 1.25, 1.2], [0.82, 1.1, 1.75], [0.62, 0.95, 2.25], [0.4, 0.8, 2.7]];
-  const parts: Geo[] = [];
-  tiers.forEach(([r, h, y], t) => {
-    let g: Geo = new THREE.ConeGeometry(r, h, 14, 3, true);
-    g.deleteAttribute('uv');
-    g.deleteAttribute('normal');
-    g = mergeVertices(g);
-    const p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const vy = p.getY(i);
-      if (vy < -h / 2 + 0.01) {
-        const a = Math.atan2(p.getZ(i), p.getX(i));
-        const jag = 1 + Math.sin(a * 7 + t) * 0.12;
-        p.setX(i, p.getX(i) * jag);
-        p.setZ(i, p.getZ(i) * jag);
-        p.setY(i, vy - 0.12 - Math.sin(a * 7 + t) * 0.06);
-      }
-    }
-    g.translate(0, y, 0);
-    g.computeVertexNormals();
-    parts.push(g);
-  });
-  const g = mergeGeometries(parts)!;
-  const p = g.attributes.position;
-  const nrm = g.attributes.normal;
-  const colors = new Float32Array(p.count * 3);
-  const c = new THREE.Color();
-  const n = new THREE.Vector3();
-  for (let i = 0; i < p.count; i++) {
-    n.set(nrm.getX(i), nrm.getY(i), nrm.getZ(i));
-    shade(sp, n, (p.getY(i) - 0.5) / 2.8, hash2(i, 5, 5), c);
-    colors.set([c.r, c.g, c.b], i * 3);
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  return mergeGeometries([trunkGeometry(sp), g])!;
-}
+// ------------------------------------------------------------------ textures
 
-// ------------------------------------------------------------------ materials
-
+/** A clump of rounded leaves, white so vertex colours tint it. */
 function leafTexture(): THREE.CanvasTexture {
-  const { canvas, ctx } = makeCanvas(128, 128);
+  const { canvas, ctx } = makeCanvas(256, 256);
   const r = rng(7);
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 34; i++) {
     const a = r() * Math.PI * 2;
-    const d = r() * 34;
-    const x = 64 + Math.cos(a) * d, y = 64 + Math.sin(a) * d;
+    const d = Math.sqrt(r()) * 80;
+    const x = 128 + Math.cos(a) * d, y = 128 + Math.sin(a) * d;
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(a + Math.PI / 2 + (r() - 0.5) * 0.6);
-    const g = 200 + Math.floor(r() * 55);
-    ctx.fillStyle = `rgb(${g},${g},${g})`;
+    ctx.rotate(a + Math.PI / 2 + (r() - 0.5) * 0.8);
+    const len = 22 + r() * 12;
+    const g = ctx.createLinearGradient(0, -len, 0, len);
+    const v = 215 + Math.floor(r() * 40);
+    g.addColorStop(0, `rgb(${v},${v},${v})`);
+    g.addColorStop(1, `rgb(${v - 45},${v - 45},${v - 45})`);
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 8 + r() * 4, 17 + r() * 6, 0, 0, Math.PI * 2);
+    ctx.moveTo(0, -len);
+    ctx.quadraticCurveTo(len * 0.62, 0, 0, len);
+    ctx.quadraticCurveTo(-len * 0.62, 0, 0, -len);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(120,120,120,0.5)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(0, 15); ctx.stroke();
+    ctx.strokeStyle = 'rgba(110,110,110,0.45)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -len * 0.85); ctx.lineTo(0, len * 0.9); ctx.stroke();
     ctx.restore();
   }
   return canvasTexture(canvas);
 }
+
+/** Fan of pine needles. */
+function needleTexture(): THREE.CanvasTexture {
+  const { canvas, ctx } = makeCanvas(256, 256);
+  const r = rng(11);
+  ctx.lineCap = 'round';
+  for (let s = 0; s < 5; s++) {
+    // a sprig: centre stem with needles both sides
+    const sx = 50 + s * 38 + (r() - 0.5) * 20;
+    const bend = (r() - 0.5) * 30;
+    for (let k = 0; k < 26; k++) {
+      const t = k / 26;
+      const x = sx + bend * t;
+      const y = 20 + t * 215;
+      const len = 26 * (1 - t * 0.5) + r() * 6;
+      const v = 200 + Math.floor(r() * 55);
+      ctx.strokeStyle = `rgb(${v},${v},${v})`;
+      ctx.lineWidth = 3;
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + side * len, y + len * 0.55);
+        ctx.stroke();
+      }
+    }
+    ctx.strokeStyle = 'rgb(170,170,170)';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(sx, 20); ctx.lineTo(sx + bend, 235); ctx.stroke();
+  }
+  return canvasTexture(canvas);
+}
+
+// ------------------------------------------------------------------ materials
 
 /** Sway with the wind; optional per-vertex flutter for leaves; optional two-sided lighting. */
 function foliageMaterial(opts: { map?: THREE.Texture; amp: number; minY: number; flutter: number; twoSided: boolean }) {
@@ -292,53 +317,6 @@ function placeAll(geos: [Geo, THREE.Material][], list: Prop[], map: WorldMap, sc
   return out;
 }
 
-export function createNature(map: WorldMap, lowEnd = false): THREE.Group {
-  const group = new THREE.Group();
-  const leafTex = leafTexture();
-  const canopyMat = foliageMaterial({ amp: 0.05, minY: 1.0, flutter: 0, twoSided: false });
-  const cardMat = foliageMaterial({ map: leafTex, amp: 0.05, minY: 1.0, flutter: 0.03, twoSided: true });
-  const pineMat = foliageMaterial({ amp: 0.035, minY: 0.9, flutter: 0, twoSided: false });
-
-  // blossom trees are rarer: about half of them become plain broadleaves
-  const species = (p: Prop) => (p.v === 3 && hash2(Math.floor(p.x * 3), Math.floor(p.z * 3), 12) < 0.55 ? 0 : p.v);
-  for (let v = 0; v < 4; v++) {
-    const sp = SPECIES[v];
-    for (const near of [true, false]) {
-      // village trees get full detail; the forest on the hills is lighter
-      const list = map.props.filter((p) => p.kind === 'tree' && p.inside === near && species(p) === v);
-      if (!list.length) continue;
-      let geos: [Geo, THREE.Material][];
-      if (v === 2) geos = [[coniferGeometry(sp), pineMat]];
-      else {
-        const detail = near && !lowEnd ? 2 : 1;
-        const cards = Math.round(sp.cards * (near ? (lowEnd ? 0.5 : 1) : 0.3));
-        geos = [
-          [mergeGeometries([trunkGeometry(sp), canopyGeometry(sp, detail, v * 7 + 1)])!, canopyMat],
-          [cardGeometry(sp, cards, v * 13 + 5), cardMat],
-        ];
-      }
-      group.add(...placeAll(geos, list, map, [0.85, 1.25]));
-    }
-  }
-
-  // bushes: same soft style, close to the ground
-  const bush: Species = {
-    trunkH: 0, trunk: '#000', dark: '#245a28', mid: '#46993f', light: '#a8dc6c', cards: 14, cardSize: 0.42,
-    blobs: [{ r: 0.42, x: 0, y: 0.34, z: 0 }, { r: 0.33, x: 0.36, y: 0.26, z: 0.1 }, { r: 0.31, x: -0.34, y: 0.25, z: 0.05 }],
-  };
-  const bushMat = foliageMaterial({ amp: 0.06, minY: 0.15, flutter: 0, twoSided: false });
-  const bushCards = foliageMaterial({ map: leafTex, amp: 0.06, minY: 0.15, flutter: 0.025, twoSided: true });
-  group.add(...placeAll(
-    [[canopyGeometry(bush, lowEnd ? 1 : 2, 31), bushMat], [cardGeometry(bush, bush.cards, 33), bushCards]],
-    map.props.filter((p) => p.kind === 'bush'), map, [0.8, 1.15],
-  ));
-
-  const rocks = placeAll([[rockGeometry(), standard({ vertexColors: true })]], map.props.filter((p) => p.kind === 'rock'), map, [0.7, 1.2]);
-  group.add(...rocks);
-  group.add(createFlowers(map));
-  return group;
-}
-
 function rockGeometry(): Geo {
   const g = wobble(new THREE.DodecahedronGeometry(0.42, 0), 0.08, 21);
   g.scale(1, 0.65, 0.9);
@@ -378,4 +356,47 @@ function createFlowers(map: WorldMap): THREE.Group {
   const g = new THREE.Group();
   g.add(stems, heads);
   return g;
+}
+
+export function createNature(map: WorldMap, lowEnd = false): THREE.Group {
+  const group = new THREE.Group();
+  const leafTex = leafTexture();
+  const needleTex = needleTexture();
+  const woodMat = foliageMaterial({ amp: 0.03, minY: 1.0, flutter: 0, twoSided: false });
+  const leafMat = foliageMaterial({ map: leafTex, amp: 0.05, minY: 1.0, flutter: 0.035, twoSided: true });
+  const needleMat = foliageMaterial({ map: needleTex, amp: 0.035, minY: 0.8, flutter: 0.015, twoSided: true });
+
+  // blossom trees are rarer: about half of them become plain broadleaves
+  const species = (p: Prop) => (p.v === 3 && hash2(Math.floor(p.x * 3), Math.floor(p.z * 3), 12) < 0.55 ? 0 : p.v);
+  for (let v = 0; v < 4; v++) {
+    const sp = SPECIES[v];
+    const pine = v === 2;
+    for (const near of [true, false]) {
+      // village trees get full leaf density; the hillside forest is lighter
+      const list = map.props.filter((p) => p.kind === 'tree' && p.inside === near && species(p) === v);
+      if (!list.length) continue;
+      const density = near ? (lowEnd ? 0.55 : 1) : (lowEnd ? 0.3 : 0.45);
+      const count = Math.round(sp.cards * density);
+      const leaves = pine ? pineCards(sp, count, v * 13 + 5) : crownCards(sp, count, v * 13 + 5);
+      group.add(...placeAll([
+        [trunkGeometry(sp, pine), woodMat],
+        [leaves, pine ? needleMat : leafMat],
+      ], list, map, [0.85, 1.25]));
+    }
+  }
+
+  // bushes: a low leafy crown, no trunk
+  const bush: Species = {
+    trunkH: 0, trunk: '#000', dark: '#2a6a2c', mid: '#5cb24a', light: '#c4ec84', cards: 120, cardSize: 0.6,
+    blobs: [{ r: 0.58, x: 0, y: 0.58, z: 0 }, { r: 0.45, x: 0.46, y: 0.42, z: 0.12 }, { r: 0.42, x: -0.44, y: 0.4, z: 0.06 }],
+  };
+  const bushMat = foliageMaterial({ map: leafTex, amp: 0.06, minY: 0.12, flutter: 0.025, twoSided: true });
+  group.add(...placeAll(
+    [[crownCards(bush, lowEnd ? 64 : bush.cards, 33), bushMat]],
+    map.props.filter((p) => p.kind === 'bush'), map, [0.95, 1.3],
+  ));
+
+  group.add(...placeAll([[rockGeometry(), standard({ vertexColors: true })]], map.props.filter((p) => p.kind === 'rock'), map, [0.7, 1.2]));
+  group.add(createFlowers(map));
+  return group;
 }
