@@ -24,7 +24,7 @@
     <div id="dmg" aria-hidden="true"></div>
     <div id="weather" class="weather" hidden>
       <button class="wx-pill" type="button" aria-expanded="false" aria-label="Weather">
-        <span class="wx-icons"></span><span class="wx-place"></span><span class="wx-temp"></span>
+        <span class="wx-icons"></span><span class="wx-place"></span><span class="wx-temp"></span><span class="wx-time-now"></span>
       </button>
       <div class="wx-panel window" hidden>
         <button class="wx-close" type="button" aria-label="Close">✕</button>
@@ -44,6 +44,13 @@
         <div class="wx-custom">
           <div class="wx-chips"></div>
           <p class="wx-note">Mix freely, e.g. Sunny + Windy + Snowy.</p>
+          <p class="wx-label">Time of day</p>
+          <div class="wx-time">
+            <button type="button" data-time="auto">Auto</button>
+            <button type="button" data-time="day">Day</button>
+            <button type="button" data-time="dusk">Sunset</button>
+            <button type="button" data-time="night">Night</button>
+          </div>
         </div>
         <p class="wx-credit">Live data: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo.com</a></p>
       </div>

@@ -8,7 +8,7 @@ import { createGrass } from './world/grass';
 import { createNature, cutBushes, regrowBushes, treesNear } from './world/nature';
 import { createGroundDetails } from './world/decals';
 import { animateFlags, createBuilding } from './world/buildings';
-import { Chest, createBridges, createFountain, createLetters, createPushables, createSign } from './world/props';
+import { Chest, createBridges, createFountain, createLanterns, createLetters, createPushables, createSign } from './world/props';
 import { School, SPECIES } from './world/fish';
 import { Fishing } from './fishing';
 import { Enemies } from './combat/enemies';
@@ -32,7 +32,7 @@ async function init() {
   // let the title screen paint before the heavy world build
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
-  const { renderer, scene, camera, composer, sun, hemi, bloom, followSun, lowEnd } = createRenderer(canvas);
+  const { renderer, scene, camera, composer, sun, hemi, bloom, sunOffset, followSun, lowEnd } = createRenderer(canvas);
   const map = new WorldMap();
   const physics = new Physics(map);
 
@@ -166,7 +166,9 @@ async function init() {
   const minimap = new Minimap(map);
 
   // weather: snow settles / ground gets wet on world surfaces (not on characters)
-  const weather = new WeatherFX(scene, sun, hemi, bloom, renderer);
+  const lanterns = createLanterns(physics, lowEnd ? 2 : 4);
+  scene.add(lanterns.group);
+  const weather = new WeatherFX(scene, sun, hemi, bloom, renderer, sunOffset);
   scene.add(weather.group);
   const skip = new Set<THREE.Object3D>([hero.group, enemies.group, school.group, hearts.group]);
   scene.traverse((o) => {
@@ -175,7 +177,7 @@ async function init() {
     if (!mesh.isMesh) return;
     (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(addWeatherCover);
   });
-  const weatherUI = new WeatherUI((s) => weather.set(s), { name: content.weather.place, lat: content.weather.lat, lon: content.weather.lon });
+  const weatherUI = new WeatherUI(weather, { name: content.weather.place, lat: content.weather.lat, lon: content.weather.lon });
   const chestMarkers = map.interactables.filter((it) => it.kind === 'chest').map((it) => ({ x: it.x, z: it.z, id: it.id }));
   const labelled = [...map.interactables, riverPrompt];
   ui.setLabels(labelled);
@@ -333,6 +335,7 @@ async function init() {
     if (!hero.down && map.isSafe(hero.x, hero.z) && hero.hp < hero.maxHp) hero.heal(6 * dt);
     ui.setHp(hero.hp, hero.maxHp);
     weather.update(dt, focus);
+    lanterns.setNight(weather.night, t);
     // raindrops dimpling the river near the hero
     if (weather.current.rain > 0.1 && Math.random() < dt * 30 * weather.current.rain) {
       const rx = hero.x + (Math.random() - 0.5) * 24, rz = hero.z + (Math.random() - 0.5) * 18;

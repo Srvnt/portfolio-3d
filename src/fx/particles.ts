@@ -17,15 +17,16 @@ export function createMotes(map: WorldMap, count = 260): THREE.Points {
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    uniforms: { uTime: uniforms.uTime, uScale: { value: window.innerHeight * 0.5 } },
+    uniforms: { uTime: uniforms.uTime, uNight: uniforms.uNight, uScale: { value: window.innerHeight * 0.5 } },
     vertexShader: /* glsl */ `
-      attribute float aSeed; uniform float uTime; uniform float uScale; varying float vA;
+      attribute float aSeed; uniform float uTime; uniform float uScale; uniform float uNight; varying float vA;
       void main(){
         vec3 p = position;
         p.x += sin(uTime * 0.3 + aSeed) * 0.8;
         p.z += cos(uTime * 0.25 + aSeed * 1.3) * 0.8;
         p.y += sin(uTime * 0.6 + aSeed * 2.0) * 0.35;
-        vA = 0.55 + 0.45 * sin(uTime * 2.0 + aSeed * 5.0);
+        // fireflies: brighter and livelier after dark
+        vA = (0.55 + 0.45 * sin(uTime * (2.0 + uNight * 2.0) + aSeed * 5.0)) * (0.6 + uNight * 1.6);
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
         gl_PointSize = uScale * 0.07 / -mv.z;
         gl_Position = projectionMatrix * mv;

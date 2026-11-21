@@ -10,6 +10,8 @@ export const uniforms = {
   uWind: { value: 0 },
   uSnow: { value: 0 },
   uWet: { value: 0 },
+  /** 0 = full day, 1 = deep night. */
+  uNight: { value: 0 },
 };
 
 /** Low-poly helpers ---------------------------------------------------------- */

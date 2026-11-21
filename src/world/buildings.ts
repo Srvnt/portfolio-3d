@@ -232,6 +232,7 @@ export function createBuilding(b: Building): BuildingResult {
   const stone = standard({ color: '#a9a397' });
   const accent = standard({ color: b.accent });
   const glass = new THREE.MeshStandardMaterial({ color: '#ffe3a0', emissive: '#ffbf5a', emissiveIntensity: 1.6, roughness: 0.3 });
+  glass.name = 'window-glass'; // the day-night cycle brightens these at night
   const { w, d } = b;
   const wallTop = PLINTH + WALL_H;
 

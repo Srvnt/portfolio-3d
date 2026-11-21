@@ -274,3 +274,48 @@ export function createBridges(map: WorldMap): THREE.Group {
   }
   return shadowed(g);
 }
+
+/** Village lanterns: posts with glass lamps that light up at dusk. A few carry real point lights. */
+export function createLanterns(physics: Physics, withLights: number) {
+  const spots: [number, number][] = [[17.5, 21.6], [26.5, 21.6], [17.5, 13.5], [26.5, 13.5], [12.5, 16.3], [30.5, 16.3], [20.3, 25.5], [23.7, 25.5]];
+  const group = new THREE.Group();
+  const iron = new THREE.MeshStandardMaterial({ color: '#2e2a30', roughness: 0.5, metalness: 0.4 });
+  const glow = new THREE.MeshStandardMaterial({ color: '#fff0c0', emissive: '#ffb84a', emissiveIntensity: 0.2, roughness: 0.3 });
+  const lights: THREE.PointLight[] = [];
+  spots.forEach(([x, z], i) => {
+    const g = new THREE.Group();
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 2.1, 8), iron);
+    post.position.y = 1.05;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.15, 8), iron);
+    base.position.y = 0.07;
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.04), iron);
+    arm.position.set(0.17, 2.0, 0);
+    const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.26, 6, 1, true), iron);
+    cage.position.set(0.36, 1.83, 0);
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 0.22, 6), glow);
+    lamp.position.copy(cage.position);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.12, 6), iron);
+    cap.position.set(0.36, 2.02, 0);
+    g.add(post, base, arm, cage, lamp, cap);
+    g.traverse((o) => (o.castShadow = o !== lamp));
+    if (i < withLights) {
+      const l = new THREE.PointLight('#ffb35a', 0, 7, 1.6);
+      l.position.set(0.36, 1.75, 0);
+      g.add(l);
+      lights.push(l);
+    }
+    g.position.set(x, 0, z);
+    g.rotation.y = (i % 2 ? Math.PI : 0) + (z > 20 ? Math.PI / 2 : 0);
+    group.add(g);
+    physics.cylinder(x, z, 0.14, 1.1);
+  });
+  return {
+    group,
+    /** 0 = day … 1 = night */
+    setNight(n: number, t: number) {
+      const flicker = 1 + Math.sin(t * 11) * 0.03 + Math.sin(t * 23) * 0.02;
+      glow.emissiveIntensity = 0.2 + n * 3.4 * flicker;
+      for (const l of lights) l.intensity = n * 9 * flicker;
+    },
+  };
+}

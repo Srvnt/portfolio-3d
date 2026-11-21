@@ -69,7 +69,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   sun.shadow.normalBias = 0.03;
   sun.shadow.radius = 3;
   scene.add(sun, sun.target);
-  const SUN_OFFSET = new THREE.Vector3(-14, 26, 12);
+  /** Direction to the sun/moon (scaled); the day-night cycle moves it. */
+  const sunOffset = new THREE.Vector3(-14, 26, 12);
 
   // post-processing
   const target = new THREE.WebGLRenderTarget(1, 1, { samples: lowEnd ? 0 : 2, type: THREE.HalfFloatType });
@@ -96,8 +97,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   /** Keep the shadow frustum centred on the action for crisp shadows. */
   function followSun(focus: THREE.Vector3) {
     sun.target.position.copy(focus);
-    sun.position.copy(focus).add(SUN_OFFSET);
+    sun.position.copy(focus).add(sunOffset);
   }
 
-  return { renderer, scene, camera, composer, sun, hemi, bloom, followSun, lowEnd };
+  return { renderer, scene, camera, composer, sun, hemi, bloom, sunOffset, followSun, lowEnd };
 }

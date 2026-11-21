@@ -4,7 +4,15 @@
  * - Custom: toggle Sunny / Windy / Snowy / Rainy / Foggy in any combination.
  * The choice is remembered in localStorage.
  */
-import { WeatherState } from '../fx/weather';
+import { SunClock, TimeChoice, WeatherState } from '../fx/weather';
+
+/** What the menu drives (WeatherFX). */
+export interface WeatherTarget {
+  set(s: WeatherState): void;
+  setClock(c: SunClock | null): void;
+  setTime(t: TimeChoice): void;
+  localTimeOfDay(): number | null;
+}
 
 export interface Place { name: string; lat: number; lon: number }
 type Key = 'sun' | 'wind' | 'snow' | 'rain' | 'fog';
@@ -81,14 +89,19 @@ export class WeatherUI {
   private liveText = '';
   private temp = '';
   private refresh = 0;
+  private time: TimeChoice = 'auto';
+  private placeLabel = '';
+  private apply: (s: WeatherState) => void;
 
-  constructor(private apply: (s: WeatherState) => void, defaultPlace: Place) {
+  constructor(private fx: WeatherTarget, defaultPlace: Place) {
+    this.apply = (st) => fx.set(st);
     this.place = defaultPlace;
     try {
       const saved = JSON.parse(localStorage.getItem(STORE) ?? 'null');
       if (saved?.place?.name) this.place = saved.place;
       if (saved?.mode === 'custom' || saved?.mode === 'live') this.mode = saved.mode;
       if (Array.isArray(saved?.custom)) this.custom = new Set(saved.custom);
+      if (['auto', 'day', 'dusk', 'night'].includes(saved?.time)) this.time = saved.time;
     } catch { /* storage unavailable: use defaults */ }
 
     this.pill.addEventListener('click', () => this.togglePanel());
@@ -115,7 +128,13 @@ export class WeatherUI {
       if (q) this.search(q);
     });
     this.root.querySelector('.wx-close')!.addEventListener('click', () => this.togglePanel(false));
+    this.root.querySelectorAll<HTMLButtonElement>('.wx-time button').forEach((b) =>
+      b.addEventListener('click', () => { this.time = b.dataset.time as TimeChoice; this.sync(); }));
+    // keep the clock on the badge ticking
+    window.setInterval(() => this.updateClock(), 15_000);
     this.sync();
+    // the place clock is needed even in Custom mode ("Auto" time)
+    if (this.mode === 'custom') this.fetchLive();
   }
 
   show() { this.root.hidden = false; }
@@ -131,7 +150,7 @@ export class WeatherUI {
   }
 
   private save() {
-    try { localStorage.setItem(STORE, JSON.stringify({ mode: this.mode, place: this.place, custom: [...this.custom] })); } catch { /* ignore */ }
+    try { localStorage.setItem(STORE, JSON.stringify({ mode: this.mode, place: this.place, custom: [...this.custom], time: this.time })); } catch { /* ignore */ }
   }
 
   /** Apply the current mode and refresh the UI. */
@@ -141,6 +160,10 @@ export class WeatherUI {
     this.root.querySelectorAll<HTMLButtonElement>('.wx-chip').forEach((b) => b.classList.toggle('on', this.custom.has(b.dataset.key as Key)));
     (this.root.querySelector('.wx-live') as HTMLElement).hidden = this.mode !== 'live';
     (this.root.querySelector('.wx-custom') as HTMLElement).hidden = this.mode !== 'custom';
+    // live weather always uses the place's real clock; custom can pin a time of day
+    const time = this.mode === 'live' ? 'auto' : this.time;
+    this.fx.setTime(time);
+    this.root.querySelectorAll<HTMLButtonElement>('.wx-time button').forEach((b) => b.classList.toggle('on', b.dataset.time === this.time));
     clearInterval(this.refresh);
     if (this.mode === 'custom') {
       const s = customState(this.custom);
@@ -155,8 +178,21 @@ export class WeatherUI {
 
   private setPill(icons: string, place: string, temp: string) {
     (this.pill.querySelector('.wx-icons') as HTMLElement).textContent = icons || '☁️';
-    (this.pill.querySelector('.wx-place') as HTMLElement).textContent = place.split(',')[0];
+    this.placeLabel = place.split(',')[0];
+    (this.pill.querySelector('.wx-place') as HTMLElement).textContent = this.placeLabel;
     (this.pill.querySelector('.wx-temp') as HTMLElement).textContent = temp;
+    this.updateClock();
+  }
+
+  /** Local time at the place on the badge (or the pinned time of day in Custom). */
+  private updateClock() {
+    const el = this.pill.querySelector('.wx-time-now') as HTMLElement;
+    const pinned = this.mode === 'custom' && this.time !== 'auto';
+    if (pinned) { el.textContent = { day: '☀ Day', dusk: '🌇 Sunset', night: '🌙 Night' }[this.time as 'day' | 'dusk' | 'night']; return; }
+    const tod = this.fx.localTimeOfDay();
+    if (tod === null) { el.textContent = ''; return; }
+    const h = Math.floor(tod / 3_600_000), m = Math.floor((tod % 3_600_000) / 60_000);
+    el.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
   private async fetchLive() {
@@ -165,12 +201,23 @@ export class WeatherUI {
     const p = this.place;
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat.toFixed(3)}&longitude=${p.lon.toFixed(3)}` +
-        '&current=temperature_2m,weather_code,cloud_cover,wind_speed_10m,visibility,rain,snowfall&timezone=auto';
+        '&current=temperature_2m,weather_code,cloud_cover,wind_speed_10m,visibility,rain,snowfall,is_day' +
+        '&daily=sunrise,sunset&forecast_days=1&timezone=auto';
       const res = await fetch(url);
       if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
-      const c = data.current as Current;
-      if (this.mode !== 'live' || this.place !== p) return; // user changed their mind meanwhile
+      const c = data.current as Current & { is_day?: number };
+      if (this.place !== p) return; // user picked another place meanwhile
+      // place clock: local times come without a zone, so read them as UTC and compare in "local ms"
+      const tod = (iso?: string | null) => (iso ? ((Date.parse(`${iso}Z`) % 86_400_000) + 86_400_000) % 86_400_000 : null);
+      this.fx.setClock({
+        utcOffset: data.utc_offset_seconds ?? 0,
+        sunrise: tod(data.daily?.sunrise?.[0]),
+        sunset: tod(data.daily?.sunset?.[0]),
+        isDay: c.is_day !== 0,
+      });
+      this.updateClock();
+      if (this.mode !== 'live') return; // Custom mode only needed the clock
       this.liveState = fromOpenMeteo(c);
       this.temp = `${Math.round(c.temperature_2m)}°C`;
       this.liveText = `${WMO[c.weather_code] ?? 'Weather'} · ${this.temp} · wind ${Math.round(c.wind_speed_10m)} km/h`;
@@ -179,6 +226,7 @@ export class WeatherUI {
       this.setPill(iconsFor(this.liveState), p.name, this.temp);
     } catch {
       now.textContent = "Couldn't reach the weather service. Showing clear skies.";
+      if (this.mode !== 'live') return;
       this.apply({ sun: 1, wind: 0.15, rain: 0, snow: 0, fog: 0 });
       this.setPill('☀️', p.name, '');
     }

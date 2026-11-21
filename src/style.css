@@ -415,6 +415,12 @@ html, body {
 .wx-now { margin: 10px 0 0; color: var(--ink-dim); font-size: 13px; }
 .wx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .wx-chip span { margin-right: 4px; }
+.wx-time-now { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.wx-time-now:empty { display: none; }
+.wx-label { margin: 12px 0 6px; font-size: 12px; font-weight: 800; color: var(--ink-dim); letter-spacing: 0.04em; text-transform: uppercase; }
+.wx-time { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.wx-time button { padding: 6px 4px; font: 800 12px var(--font); color: var(--ink); background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px; cursor: pointer; }
+.wx-time button.on { color: #1c2340; background: var(--gold); border-color: var(--gold); }
 .wx-note { margin: 10px 0 0; color: var(--ink-dim); font-size: 12px; }
 .wx-credit { margin: 12px 0 0; font-size: 11px; color: var(--ink-dim); }
 .wx-credit a { color: var(--gold); }
