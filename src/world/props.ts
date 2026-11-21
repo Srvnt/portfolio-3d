@@ -127,7 +127,8 @@ export function createGate(text: string, physics: Physics) {
   shape.quadraticCurveTo(-boardW / 2, -boardH, -boardW / 2 + r, -boardH);
   const boardGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.04, bevelSegments: 3 });
   boardGeo.translate(0, 0, -0.04);
-  add(boardGeo, standard({ color: '#22357a', flatShading: false, roughness: 0.55 }), 0, 0, 0, sign);
+  const boardMat = standard({ color: '#2b44a0', flatShading: false, roughness: 0.5, emissive: '#1a2c7a', emissiveIntensity: 0.25 });
+  add(boardGeo, boardMat, 0, 0, 0, sign);
   const frame = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(shape.getPoints(10).map((p) => new THREE.Vector3(p.x * 0.95, (p.y + boardH / 2) * 0.88 - boardH / 2, 0))), 64, 0.022, 5, true);
   add(frame, gold, 0, 0, 0.075, sign);
   const font = new FontLoader().parse(fontJson as never);
@@ -208,7 +209,11 @@ export function createGate(text: string, physics: Physics) {
   g.position.set(cx, 0, cz);
   return {
     group: g,
-    setNight(n: number, t: number) { glow.emissiveIntensity = 0.2 + n * 3.4 * (1 + Math.sin(t * 9) * 0.03); },
+    setNight(n: number, t: number) {
+      glow.emissiveIntensity = 0.2 + n * 3.4 * (1 + Math.sin(t * 9) * 0.03);
+      gold.emissiveIntensity = 0.45 + n * 1.1;
+      boardMat.emissiveIntensity = 0.25 + n * 0.6;
+    },
     animate(t: number, wind: number) {
       banners.forEach((b, i) => { b.rotation.x = Math.sin(t * (1.5 + wind * 3) + i) * (0.05 + wind * 0.22) - wind * 0.12; });
       sign.rotation.z = Math.sin(t * (1.1 + wind * 2)) * (0.006 + wind * 0.03);
@@ -441,17 +446,17 @@ function houseSignTexture(icon: string, title: string, place: string) {
   c.height = H;
   const g = c.getContext('2d')!;
   const grad = g.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, '#2a3f8a');
-  grad.addColorStop(1, '#172457');
+  grad.addColorStop(0, '#3e5fc4');
+  grad.addColorStop(1, '#22378a');
   g.fillStyle = grad;
   g.beginPath();
   g.roundRect(6, 6, W - 12, H - 12, 34);
   g.fill();
-  g.lineWidth = 10;
-  g.strokeStyle = '#f2c66b';
+  g.lineWidth = 14;
+  g.strokeStyle = '#ffd36a';
   g.stroke();
-  g.lineWidth = 3;
-  g.strokeStyle = 'rgba(255,240,200,0.5)';
+  g.lineWidth = 4;
+  g.strokeStyle = 'rgba(255,244,210,0.75)';
   g.beginPath();
   g.roundRect(24, 24, W - 48, H - 48, 22);
   g.stroke();
@@ -460,16 +465,18 @@ function houseSignTexture(icon: string, title: string, place: string) {
   g.textBaseline = 'middle';
   g.fillText(icon, 128, H / 2 + 6);
   g.textAlign = 'left';
-  g.fillStyle = '#ffd36a';
-  g.shadowColor = 'rgba(0,0,0,0.45)';
-  g.shadowBlur = 8;
-  g.shadowOffsetY = 3;
+  g.fillStyle = '#ffe28e';
+  g.shadowColor = 'rgba(255,200,90,0.55)';
+  g.shadowBlur = 14;
+  g.shadowOffsetY = 0;
   let size = 84;
   g.font = `800 ${size}px Cinzel, Georgia, serif`;
   while (g.measureText(title).width > W - 280 && size > 40) g.font = `800 ${(size -= 4)}px Cinzel, Georgia, serif`;
   g.fillText(title, 228, H / 2 - 22);
-  g.fillStyle = '#e6ecff';
-  g.font = '700 38px Nunito, system-ui, sans-serif';
+  g.shadowColor = 'rgba(10,16,50,0.6)';
+  g.shadowBlur = 6;
+  g.fillStyle = '#ffffff';
+  g.font = '800 38px Nunito, system-ui, sans-serif';
   g.fillText(place, 232, H / 2 + 48);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -479,6 +486,8 @@ function houseSignTexture(icon: string, title: string, place: string) {
 
 export function createHouseSigns(physics: Physics) {
   const group = new THREE.Group();
+  const faces: THREE.MeshStandardMaterial[] = [];
+  const lampMat = new THREE.MeshStandardMaterial({ color: '#fff0c0', emissive: '#ffb84a', emissiveIntensity: 0.15, roughness: 0.3 });
   const wood = standard({ color: '#6b4428', flatShading: false });
   const iron = new THREE.MeshStandardMaterial({ color: '#2e2a30', metalness: 0.5, roughness: 0.45 });
   for (const b of BUILDINGS) {
@@ -498,20 +507,31 @@ export function createHouseSigns(physics: Physics) {
     panel.position.set(0, 1.02, 0.02);
     panel.rotation.x = -0.55;
     const back = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.66, 0.06), wood);
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(1.56, 0.62), new THREE.MeshStandardMaterial({
-      map: houseSignTexture(HOUSE_ICONS[b.section] ?? '★', HOUSE_TITLES[b.section] ?? place, place),
-      roughness: 0.6,
-      emissive: '#ffffff',
-      emissiveIntensity: 0.08,
-    }));
+    const art = houseSignTexture(HOUSE_ICONS[b.section] ?? '★', HOUSE_TITLES[b.section] ?? place, place);
+    const faceMat = new THREE.MeshStandardMaterial({ map: art, emissiveMap: art, emissive: '#ffffff', emissiveIntensity: 0.45, roughness: 0.55 });
+    faces.push(faceMat);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(1.56, 0.62), faceMat);
     face.position.z = 0.032;
     face.userData.noSnow = true;
     panel.add(back, face);
     sign.add(panel);
-    sign.traverse((o) => { o.castShadow = true; o.receiveShadow = o !== face; });
+    const hook = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, 0.03), iron);
+    hook.position.set(-0.72 - 0.1, 1.3, 0);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.08, 6), iron);
+    cap.position.set(-0.92, 1.22, 0);
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.14, 6), lampMat);
+    lamp.position.set(-0.92, 1.11, 0);
+    sign.add(hook, cap, lamp);
+    sign.traverse((o) => { o.castShadow = o !== lamp; o.receiveShadow = o !== face && o !== lamp; });
     sign.position.set(sx, 0, sz);
     group.add(sign);
     for (const side of [-1, 1]) physics.cylinder(sx + side * 0.72, sz, 0.1, 0.8);
   }
-  return group;
+  return {
+    group,
+    setNight(n: number, t: number) {
+      for (const f of faces) f.emissiveIntensity = 0.45 + n * 0.75;
+      lampMat.emissiveIntensity = 0.15 + n * 3.2 * (1 + Math.sin(t * 10) * 0.03);
+    },
+  };
 }

@@ -56,7 +56,8 @@ async function init() {
     if (r.chimneyTop) chimneys.push(r.chimneyTop);
   }
   scene.add(town);
-  scene.add(createHouseSigns(physics));
+  const houseSigns = createHouseSigns(physics);
+  scene.add(houseSigns.group);
   scene.add(createPushables(map, physics));
   const gate = createGate(content.profile.name, physics);
   scene.add(gate.group);
@@ -336,6 +337,7 @@ async function init() {
     lanterns.setNight(weather.night, t);
     guide?.update(dt, t, hero.x, hero.z, weather.night);
     gate.setNight(weather.night, t);
+    houseSigns.setNight(weather.night, t);
     gate.animate(t, weather.current.wind);
     if (weather.current.rain > 0.1 && Math.random() < dt * 30 * weather.current.rain) {
       const rx = hero.x + (Math.random() - 0.5) * 24, rz = hero.z + (Math.random() - 0.5) * 18;
