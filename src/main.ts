@@ -415,7 +415,7 @@ async function init() {
     composer.render(dt);
   });
 
-  if (import.meta.env.DEV) Object.assign(window, { __dbg: { scene, camera, renderer, hero, map, physics, fishing, school, enemies } });
+  if (import.meta.env.DEV) Object.assign(window, { __dbg: { scene, camera, renderer, composer, weather, hero, map, physics, fishing, school, enemies } });
 }
 
 init().catch((err) => {
