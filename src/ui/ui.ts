@@ -68,7 +68,9 @@ export class UI {
 
   constructor(private content: Content) {
     $('#title .title-name').textContent = content.profile.name;
-    $('#title .title-role').textContent = content.profile.role;
+    // "Main role | specialty" → main role on one line, specialty smaller below
+    const [main, ...rest] = content.profile.role.split('|').map((s) => s.trim());
+    $('#title .title-role').innerHTML = esc(main) + (rest.length ? `<span class="title-sub">${esc(rest.join(' · '))}</span>` : '');
     document.title = `${content.profile.name} — Portfolio`;
     $('#panel .close').addEventListener('click', () => this.closePanel());
     this.panelWrap.addEventListener('click', (e) => { if (e.target === this.panelWrap) this.closePanel(); });

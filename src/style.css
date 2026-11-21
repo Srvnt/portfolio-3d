@@ -225,7 +225,8 @@ html, body {
 .title-card { text-align: center; padding: 16px; color: #fff; text-shadow: 0 2px 24px rgba(10, 18, 50, 0.6); }
 .title-kicker { font-weight: 800; letter-spacing: 0.4em; text-transform: uppercase; font-size: 13px; margin: 0 0 12px; opacity: 0.85; }
 .title-name { font-family: var(--font-title); font-weight: 800; font-size: clamp(40px, 9vw, 104px); line-height: 1; margin: 0 0 14px; }
-.title-role { font-size: clamp(17px, 2.4vw, 24px); font-weight: 600; margin: 0 0 48px; }
+.title-role { font-size: clamp(18px, 2.6vw, 26px); font-weight: 700; margin: 0 0 48px; }
+.title-sub { display: block; margin-top: 8px; font-size: clamp(14px, 1.7vw, 18px); font-weight: 600; letter-spacing: 0.03em; opacity: 0.88; }
 .title-start {
   display: inline-block;
   padding: 12px 26px;
