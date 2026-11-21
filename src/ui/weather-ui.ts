@@ -87,13 +87,7 @@ export class WeatherUI {
   constructor(private fx: WeatherTarget, defaultPlace: Place) {
     this.apply = (st) => fx.set(st);
     this.place = defaultPlace;
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORE) ?? 'null');
-      if (saved?.place?.name) this.place = saved.place;
-      if (saved?.mode === 'custom' || saved?.mode === 'live') this.mode = saved.mode;
-      if (Array.isArray(saved?.custom)) this.custom = new Set(saved.custom);
-      if (['auto', 'day', 'dusk', 'night'].includes(saved?.time)) this.time = saved.time;
-    } catch {}
+    try { localStorage.removeItem(STORE); } catch {}
 
     this.pill.addEventListener('click', () => this.togglePanel());
     this.root.querySelectorAll<HTMLButtonElement>('.wx-tabs button').forEach((b) =>
@@ -138,12 +132,8 @@ export class WeatherUI {
     this.sync();
   }
 
-  private save() {
-    try { localStorage.setItem(STORE, JSON.stringify({ mode: this.mode, place: this.place, custom: [...this.custom], time: this.time })); } catch {}
-  }
 
   private sync() {
-    this.save();
     this.root.querySelectorAll<HTMLButtonElement>('.wx-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.mode === this.mode));
     this.root.querySelectorAll<HTMLButtonElement>('.wx-chip').forEach((b) => b.classList.toggle('on', this.custom.has(b.dataset.key as Key)));
     (this.root.querySelector('.wx-live') as HTMLElement).hidden = this.mode !== 'live';
