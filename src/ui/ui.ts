@@ -163,8 +163,21 @@ export class UI {
     this.fishHintEl.hidden = !text;
     if (text && this.fishHintEl.textContent !== text) {
       this.fishHintEl.textContent = text;
-      this.fishHintEl.classList.toggle('now', text.startsWith('NOW'));
+      this.fishHintEl.classList.toggle('now', text.startsWith('BITE'));
     }
+  }
+
+  private fishMeterEl = $('#fish-meter');
+  private zoneEl = this.fishMeterEl.querySelector('.zone') as HTMLElement;
+  private needleEl = this.fishMeterEl.querySelector('.needle') as HTMLElement;
+
+  fishMeter(m: { needle: number; zone: number; width: number } | null) {
+    this.fishMeterEl.hidden = !m;
+    if (!m) return;
+    this.zoneEl.style.left = `${(m.zone - m.width / 2) * 100}%`;
+    this.zoneEl.style.width = `${m.width * 100}%`;
+    this.needleEl.style.left = `${m.needle * 100}%`;
+    this.fishMeterEl.classList.toggle('hit', Math.abs(m.needle - m.zone) <= m.width / 2);
   }
 
   fishAlert(at: THREE.Vector3 | null, camera: THREE.Camera) {

@@ -66,6 +66,24 @@ export class WorldMap {
   fishingSpots: { x: number; z: number; dir: 1 | -1; bobber: { x: number; z: number } }[] = [];
   private center: Float32Array = new Float32Array(0);
 
+  /**
+   * If (x, z) is on a riverbank or a bridge, where should the bobber land? Null otherwise.
+   * Banks: cast toward the middle of the river. Bridges: cast over the downstream rail.
+   */
+  riverSpot(x: number, z: number): { x: number; z: number } | null {
+    const tx = Math.floor(x), tz = Math.floor(z);
+    if (this.tile(tx, tz) === Tile.Bridge) {
+      const side = this.tile(tx, tz + 2) === Tile.Water ? 1 : -1;
+      return { x, z: z + side * 1.7 };
+    }
+    const c = this.riverCenter(z);
+    const d = Math.abs(x - c);
+    if (d < 1.4 || d > 2.9) return null;
+    // the water tile between the hero and the centre must actually be river (not a bridge row)
+    if (this.tile(Math.floor(c), tz) !== Tile.Water) return null;
+    return { x: c + Math.sign(x - c) * 0.35, z };
+  }
+
   /** X of the river's centre line at any z (smoothly interpolated between rows). */
   riverCenter(z: number): number {
     const zc = Math.min(this.H - 1, Math.max(0, z - 0.5));
@@ -143,11 +161,7 @@ export class WorldMap {
     riverside(6, 16, 6, westBank, 1);
     riverside(19, 26, 26, westBank, 1);
     riverside(19, 28, 28, eastBank, -1);
-    this.fishingSpots.forEach((f, i) => this.interactables.push({
-      id: `fish-${i}`, kind: 'fish', label: 'Fishing spot',
-      x: f.x, z: f.z, range: 1.3,
-      labelPos: [f.x + f.dir * 0.6, 1.7, f.z],
-    }));
+    // (docks are scenery now — you can fish from any bank; see riverSpot())
 
     const trail = (x0: number, z0: number, x1: number, z1: number) =>
       this.rect(x0, z0, x1, z1, (_x, _z, i) => (this.reserved[i] = 1));

@@ -3,34 +3,46 @@ import { Hero } from './hero';
 import { Fish, School } from './world/fish';
 import { Puffs, Ripples } from './fx/particles';
 
-type Phase = 'cast' | 'wait' | 'nibble' | 'bite' | 'reel';
+type Phase = 'cast' | 'wait' | 'nibble' | 'hook' | 'reel';
 export type FishingResult =
   | { kind: 'caught'; fish: Fish }
   | { kind: 'early' }
   | { kind: 'late' }
+  | { kind: 'slip' }
   | null;
 
+/** Timing meter shown during the bite: needle sweeps 0..1, press while it's inside the zone. */
+export interface Meter { needle: number; zone: number; width: number }
+
 const WATER_Y = 0.06;
+const LURE_RADIUS = 7;
 
 /**
- * The fishing minigame: cast → wait → nibble → BITE (press E now!) → reel in.
- * Pressing too early scares the fish; waiting too long lets it get away.
+ * The fishing minigame:
+ * cast → fish swarm to the bait → fake-out nibbles (don't pull!) →
+ * BITE: a timing meter appears; press E while the needle is in the green zone → reel in.
+ * Faster fish move the needle quicker and have a smaller zone.
  */
 export class Fishing {
   active = false;
   private phase: Phase = 'cast';
   private t = 0;
   private wait = 0;
-  private fish: Fish | null = null;
+  private nibblesLeft = 0;
+  private nibbleT = 0;
+  private biter: Fish | null = null;
+  private lured: Fish[] = [];
   private target = new THREE.Vector3();
   private bobber = new THREE.Group();
   private line: THREE.Line;
   private linePts = new Float32Array(20 * 3);
   private tip = new THREE.Vector3();
   private reelFrom = new THREE.Vector3();
-  /** Screen-space "!" while the fish is biting; null otherwise. */
+  private needleSpeed = 1;
+  /** World point for the "!" bubble while hooking; null otherwise. */
   alertAt: THREE.Vector3 | null = null;
   hint: string | null = null;
+  meter: Meter | null = null;
 
   constructor(scene: THREE.Scene, private hero: Hero, private school: School, private splash: Puffs, private ripples: Ripples) {
     const red = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#e0322a', roughness: 0.4 }));
@@ -51,8 +63,10 @@ export class Fishing {
     this.active = true;
     this.phase = 'cast';
     this.t = 0;
-    this.fish = null;
-    this.target.set(bobberAt.x + (Math.random() - 0.5) * 0.4, WATER_Y, bobberAt.z + (Math.random() - 0.5) * 0.6);
+    this.biter = null;
+    this.lured = [];
+    this.meter = null;
+    this.target.set(bobberAt.x + (Math.random() - 0.5) * 0.3, WATER_Y, bobberAt.z + (Math.random() - 0.5) * 0.4);
     this.hero.face(this.target.x, this.target.z);
     this.hero.fishing = true;
     this.hero.cast = 0;
@@ -61,13 +75,16 @@ export class Fishing {
   }
 
   stop() {
-    if (this.fish && !this.fish.hooked) this.school.release(this.fish);
+    for (const f of this.lured) if (!f.hooked) this.school.release(f);
+    if (this.biter && !this.biter.hooked) this.school.release(this.biter);
+    this.lured = [];
+    this.biter = null;
     this.active = false;
-    this.fish = null;
     this.hero.fishing = false;
     this.bobber.visible = this.line.visible = false;
     this.alertAt = null;
     this.hint = null;
+    this.meter = null;
   }
 
   /** Advance one frame. `pressed` = the action key was pressed this frame. */
@@ -94,50 +111,58 @@ export class Fishing {
           this.splash.emit(b.clone(), new THREE.Vector3(0, 0.6, 0), 0.4, 0.14, 1.5);
           this.phase = 'wait';
           this.t = 0;
-          this.wait = 1.5 + Math.random() * 2.5;
-          this.lure();
-          this.hint = 'Wait for a bite… press E when the bobber dips!';
+          this.wait = 1.2 + Math.random() * 1.5;
+          this.attract();
+          this.hint = 'Fish are coming… don\'t pull until it really bites!';
         }
         break;
       }
       case 'wait': {
         b.y = WATER_Y + Math.sin(t * 3) * 0.012;
         if (pressed) return this.miss('early');
-        if (!this.fish || this.t > 9) { this.lure(); this.t = Math.min(this.t, 4); }
-        const close = this.fish && this.fish.group.position.distanceTo(new THREE.Vector3(b.x, this.fish.group.position.y, b.z)) < 0.3;
-        if (close && this.t > this.wait) { this.phase = 'nibble'; this.t = 0; }
         if (Math.random() < dt * 0.4) this.ripples.emit(b, 0.3, 0.9);
-        break;
-      }
-      case 'nibble': {
-        // little twitches: don't pull yet!
-        b.y = WATER_Y - Math.max(0, Math.sin(this.t * 22)) * 0.03;
-        if (pressed) return this.miss('early');
-        if (this.t > 0.6 + Math.random() * 0.02 && Math.random() < dt * 3) {
-          this.phase = 'bite';
-          this.t = 0;
-          this.ripples.emit(b, 0.9, 0.9);
-          this.splash.emit(b.clone(), new THREE.Vector3(0, 0.9, 0), 0.4, 0.16, 1.6);
-          this.hint = 'NOW! Press E!';
+        // re-attract now and then: new fish may have swum into range
+        if (this.t > 6 && Math.random() < dt) this.attract(this.t > 10 ? LURE_RADIUS * 2.5 : LURE_RADIUS);
+        // the first fish to reach the bait takes it; the others circle
+        if (this.t > this.wait) {
+          const first = this.lured.find((f) => this.flatDist(f, b) < 0.32);
+          if (first) {
+            this.biter = first;
+            this.circleOthers();
+            this.phase = 'nibble';
+            this.t = 0;
+            this.nibblesLeft = 1 + Math.floor(Math.random() * 3) + Math.round(first.agility * 1.5);
+            this.nibbleT = 0.4 + Math.random() * 0.6;
+            this.hint = 'Nibbling… wait for it…';
+          }
         }
         break;
       }
-      case 'bite': {
-        b.y = WATER_Y - 0.09 + Math.sin(t * 30) * 0.01;
+      case 'nibble': {
+        // fake-outs: short twitches with pauses; pulling now scares the fish
+        if (pressed) return this.miss('early');
+        this.nibbleT -= dt;
+        const twitch = this.nibbleT < 0.25 && this.nibbleT > 0 ? Math.max(0, Math.sin(this.nibbleT * 40)) * 0.035 : 0;
+        b.y = WATER_Y - twitch;
+        if (this.nibbleT <= 0) {
+          if (this.nibblesLeft-- > 0) {
+            this.ripples.emit(b, 0.35, 0.7);
+            this.nibbleT = 0.5 + Math.random() * 0.9;
+          } else {
+            this.startHook();
+          }
+        }
+        break;
+      }
+      case 'hook': {
+        b.y = WATER_Y - 0.09 + Math.sin(t * 30) * 0.012;
+        const m = this.meter!;
+        m.needle = (1 - Math.cos(this.t * this.needleSpeed * Math.PI)) / 2;
         this.alertAt = b.clone().setY(0.9);
         if (pressed) {
-          this.phase = 'reel';
-          this.t = 0;
-          this.alertAt = null;
-          this.hint = null;
-          if (this.fish) {
-            this.fish.hooked = true;
-            this.fish.lure = null;
-            this.reelFrom.copy(this.fish.group.position);
-          }
-          this.splash.emit(b.clone(), new THREE.Vector3(0, 1.4, 0), 0.6, 0.22, 1.6);
-          this.ripples.emit(b, 1.2, 1.1);
-        } else if (this.t > 0.85) {
+          if (Math.abs(m.needle - m.zone) <= m.width / 2) this.startReel();
+          else return this.miss('slip');
+        } else if (this.t > 3.2) {
           return this.miss('late');
         }
         break;
@@ -145,7 +170,7 @@ export class Fishing {
       case 'reel': {
         // the fish leaps out of the water and arcs to the hero
         const k = Math.min(1, this.t / 0.9);
-        const f = this.fish!;
+        const f = this.biter!;
         const to = new THREE.Vector3(this.hero.x, 1.1, this.hero.z);
         f.group.position.lerpVectors(this.reelFrom, to, k);
         f.group.position.y += Math.sin(k * Math.PI) * 1.4;
@@ -156,10 +181,9 @@ export class Fishing {
         if (k >= 1) {
           f.group.rotation.x = 0;
           this.school.caught(f, this.hero.z);
-          const caught = f;
-          this.fish = null;
+          this.biter = null;
           this.stop();
-          result = { kind: 'caught', fish: caught };
+          result = { kind: 'caught', fish: f };
         }
         break;
       }
@@ -169,14 +193,58 @@ export class Fishing {
     return result;
   }
 
-  private lure() {
-    if (this.fish) this.fish.lure = null;
-    this.fish = this.school.closest(this.target);
-    if (this.fish) this.fish.lure = this.target.clone();
+  private flatDist(f: Fish, p: THREE.Vector3) {
+    return Math.hypot(f.group.position.x - p.x, f.group.position.z - p.z);
   }
 
-  private miss(kind: 'early' | 'late'): FishingResult {
+  /** Every free fish in range starts swimming for the bait. */
+  private attract(radius = LURE_RADIUS) {
+    for (const f of this.school.near(this.target, radius)) {
+      if (this.lured.includes(f)) continue;
+      f.lure = this.target.clone();
+      this.lured.push(f);
+    }
+  }
+
+  /** Losers hover in a loose ring around the bobber. */
+  private circleOthers() {
+    this.lured.forEach((f, i) => {
+      if (f === this.biter) return;
+      const a = (i / Math.max(1, this.lured.length)) * Math.PI * 2;
+      f.lure = this.target.clone().add(new THREE.Vector3(Math.cos(a) * 0.8, 0, Math.sin(a) * 0.8));
+    });
+  }
+
+  private startHook() {
+    const ag = this.biter?.agility ?? 0.5;
+    this.phase = 'hook';
+    this.t = 0;
+    // faster fish: quicker needle, narrower green zone
+    this.needleSpeed = 0.9 + ag * 1.3;
+    const width = 0.24 - ag * 0.13;
+    this.meter = { needle: 0, zone: 0.2 + Math.random() * 0.6, width };
+    this.ripples.emit(this.bobber.position, 0.9, 0.9);
+    this.splash.emit(this.bobber.position.clone(), new THREE.Vector3(0, 0.9, 0), 0.4, 0.16, 1.6);
+    this.hint = 'BITE! Press E in the green!';
+  }
+
+  private startReel() {
+    this.phase = 'reel';
+    this.t = 0;
+    this.alertAt = null;
+    this.meter = null;
+    this.hint = null;
+    const f = this.biter!;
+    f.hooked = true;
+    f.lure = null;
+    this.reelFrom.copy(f.group.position);
+    this.splash.emit(this.bobber.position.clone(), new THREE.Vector3(0, 1.4, 0), 0.6, 0.22, 1.6);
+    this.ripples.emit(this.bobber.position, 1.2, 1.1);
+  }
+
+  private miss(kind: 'early' | 'late' | 'slip'): FishingResult {
     this.splash.emit(this.bobber.position.clone(), new THREE.Vector3(0, 0.5, 0), 0.4, 0.12, 1.4);
+    this.ripples.emit(this.bobber.position, 0.8, 0.8);
     this.stop();
     return { kind };
   }
@@ -184,7 +252,7 @@ export class Fishing {
   /** Sagging fishing line from rod tip to bobber. */
   private drawLine() {
     const a = this.tip, b = this.bobber.position;
-    const sag = this.phase === 'cast' ? 0.05 : 0.35;
+    const sag = this.phase === 'cast' ? 0.05 : this.phase === 'hook' ? 0.05 : 0.35;
     for (let i = 0; i < 20; i++) {
       const k = i / 19;
       this.linePts[i * 3] = a.x + (b.x - a.x) * k;

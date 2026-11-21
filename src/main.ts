@@ -82,6 +82,9 @@ async function init() {
   scene.add(school.group, splash.group, ripples.group);
   const fishing = new Fishing(scene, hero, school, splash, ripples);
   const caughtFacts = new Set<number>();
+  // a floating "Fish here" prompt that follows the hero along any riverbank
+  const riverPrompt: Interactable = { id: 'river', kind: 'fish', x: 0, z: 0, range: 0.5, label: 'Fish here', labelPos: [0, 2.2, 0] };
+  let riverCast: { x: number; z: number } | null = null;
   let shownAllCaught = false;
 
   // ---------------------------------------------------------------- state
@@ -89,7 +92,8 @@ async function init() {
   let state: State = 'title';
   const input = new Input();
   const ui = new UI(content);
-  ui.setLabels(map.interactables);
+  const labelled = [...map.interactables, riverPrompt];
+  ui.setLabels(labelled);
   ui.onPanelClose = () => { state = 'play'; input.allowDefaults = false; };
   setupTouch(input, canvas);
 
@@ -107,7 +111,14 @@ async function init() {
       const d = Math.hypot(it.x - hero.x, it.z - hero.z);
       if (d < it.range && d < bestD) { best = it; bestD = d; }
     }
-    return best;
+    if (best) return best;
+    // otherwise: can we fish from here?
+    riverCast = map.riverSpot(hero.x, hero.z);
+    if (!riverCast) return null;
+    riverPrompt.x = hero.x;
+    riverPrompt.z = hero.z;
+    riverPrompt.labelPos = [hero.x, 2.3, hero.z];
+    return riverPrompt;
   };
 
   const interact = (it: Interactable) => {
@@ -126,10 +137,9 @@ async function init() {
       chest.open();
       state = 'dialog';
       ui.dialog('Treasure', [already ? 'The chest is empty… you already found this one.' : content.secrets[it.index ?? 0] ?? '…'], () => (state = 'play'));
-    } else if (it.kind === 'fish') {
-      const spot = map.fishingSpots[Number(it.id.split('-')[1])];
+    } else if (it.kind === 'fish' && riverCast) {
       state = 'fishing';
-      fishing.start(spot.bobber);
+      fishing.start(riverCast);
     }
   };
 
@@ -195,10 +205,13 @@ async function init() {
             if (all) shownAllCaught = true;
           } else if (res?.kind === 'early') {
             state = 'dialog';
-            ui.dialog('Too soon!', ['You pulled before the fish bit. Wait until the bobber dips under the water, then press E.'], () => (state = 'play'));
+            ui.dialog('Too soon!', ['Those were only nibbles. Wait for the real bite: the meter and the ! appear.'], () => (state = 'play'));
           } else if (res?.kind === 'late') {
             state = 'dialog';
-            ui.dialog('It got away!', ['The fish stole the bait. Press E the moment the bobber dips and the ! appears.'], () => (state = 'play'));
+            ui.dialog('It got away!', ['The fish stole the bait. When the meter appears, press E while the needle is in the green.'], () => (state = 'play'));
+          } else if (res?.kind === 'slip') {
+            state = 'dialog';
+            ui.dialog('It slipped off the hook!', ['So close! Time your press so the needle is inside the green zone. Quick fish are trickier.'], () => (state = 'play'));
           }
         }
       }
@@ -258,9 +271,10 @@ async function init() {
       followSun(focus);
     }
 
-    ui.updateLabels(map.interactables, camera, near?.id ?? null, state !== 'play');
-    ui.fishHint(state === 'fishing' && fishing.hint ? `${fishing.hint}  ·  Esc to stop` : null);
+    ui.updateLabels(labelled, camera, near?.id ?? null, state !== 'play');
+    ui.fishHint(state === 'fishing' && fishing.hint ? (fishing.meter ? fishing.hint : `${fishing.hint}  ·  Esc to stop`) : null);
     ui.fishAlert(state === 'fishing' ? fishing.alertAt : null, camera);
+    ui.fishMeter(state === 'fishing' ? fishing.meter : null);
     composer.render(dt);
   });
 

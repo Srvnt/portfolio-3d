@@ -3,10 +3,11 @@ import { WorldMap } from './map';
 
 /** Look of each species, in the same order as `content.fish`. Extra content entries reuse these. */
 export const SPECIES = [
-  { body: '#3f5a22', belly: '#e6e0b0', fin: '#b5652a', len: 1.35 }, // pike
-  { body: '#5f6a1e', belly: '#f2e6b8', fin: '#e8622a', len: 0.95 }, // perch
-  { body: '#4f5f6a', belly: '#f4f0ea', fin: '#d9708a', len: 1.1 }, // trout
-  { body: '#5a6878', belly: '#fbf2ee', fin: '#c4848a', len: 1.25 }, // salmon
+  // agility: how fast it chases bait and how tricky it is to hook (0 slow/easy … 1 fast/hard)
+  { body: '#3f5a22', belly: '#e6e0b0', fin: '#b5652a', len: 1.35, agility: 0.9 }, // pike
+  { body: '#5f6a1e', belly: '#f2e6b8', fin: '#e8622a', len: 0.95, agility: 0.5 }, // perch
+  { body: '#4f5f6a', belly: '#f4f0ea', fin: '#d9708a', len: 1.1, agility: 0.7 }, // trout
+  { body: '#5a6878', belly: '#fbf2ee', fin: '#c4848a', len: 1.25, agility: 0.25 }, // salmon
 ];
 
 const UNDERWATER = new THREE.Color('#c4e2ea');
@@ -20,6 +21,8 @@ export interface Fish {
   lat: number;
   dir: 1 | -1;
   speed: number;
+  /** 0..1, from species ± individual variation */
+  agility: number;
   seed: number;
   lure: THREE.Vector3 | null;
   hooked: boolean;
@@ -85,6 +88,7 @@ export class School {
         z: 1 + Math.random() * (map.H - 2), lat: 0,
         dir: Math.random() < 0.5 ? 1 : -1,
         speed: 0.5 + Math.random() * 0.5, seed: Math.random() * 100,
+        agility: THREE.MathUtils.clamp(SPECIES[species].agility + (Math.random() - 0.5) * 0.3, 0, 1),
         lure: null, hooked: false, respawn: 0, jump: -1, nextJump: 6 + Math.random() * 14,
       };
       this.group.add(group);
@@ -102,6 +106,13 @@ export class School {
       if (dd < d) { d = dd; best = f; }
     }
     return best;
+  }
+
+  /** Free fish within `r` of a point, nearest first. */
+  near(p: THREE.Vector3, r: number): Fish[] {
+    return this.fish
+      .filter((f) => !f.hooked && f.respawn <= 0 && f.group.position.distanceTo(p) < r)
+      .sort((a, b) => a.group.position.distanceTo(p) - b.group.position.distanceTo(p));
   }
 
   /** The fish disappears for a while after being caught, then returns elsewhere. */
@@ -132,10 +143,15 @@ export class School {
       const g = f.group;
       const prev = g.position.clone();
       if (f.lure) {
-        // swim to just in front of the bobber, then hover
+        // chase the bait at this fish's own pace, with a little side-to-side weave
         const to = f.lure.clone().setY(SWIM_Y);
         const d = to.distanceTo(g.position);
-        if (d > 0.22) g.position.addScaledVector(to.sub(g.position).normalize(), Math.min(d, dt * 0.9));
+        const pace = 0.45 + f.agility * 1.6;
+        if (d > 0.05) {
+          const dir = to.sub(g.position).normalize();
+          dir.x += Math.sin(t * 4 + f.seed) * 0.25 * Math.min(1, d);
+          g.position.addScaledVector(dir.normalize(), Math.min(d, dt * pace));
+        }
         f.z = g.position.z;
         f.lat = g.position.x - this.map.riverCenter(f.z);
       } else {
