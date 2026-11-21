@@ -193,7 +193,7 @@ export class WorldMap {
       labelPos: [SIGN[0] + 0.5, 2.9, SIGN[1] + 0.5],
     });
 
-    for (const [id, x, z] of [['warn-east', 45, 15], ['warn-south', 23, 35]] as [string, number, number][]) {
+    for (const [id, x, z] of [['warn-east', 45, 15], ['warn-south', 20, 35]] as [string, number, number][]) {
       this.occ[this.i(x, z)] = Occ.Fixture;
       this.interactables.push({
         id, kind: 'sign', label: 'Warning sign',
