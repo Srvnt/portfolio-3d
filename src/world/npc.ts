@@ -109,7 +109,7 @@ export class Npc {
     part(new THREE.CylinderGeometry(0.03, 0.04, 1.85, 6), wood, staff, 0, 0.92, 0);
     const knot = part(new THREE.TorusGeometry(0.08, 0.025, 6, 12), wood, staff, 0, 1.88, 0);
     knot.rotation.y = Math.PI / 2;
-    this.gem = new THREE.MeshStandardMaterial({ color: '#8fe6ff', emissive: '#3ac8ff', emissiveIntensity: 0.6, roughness: 0.15 });
+    this.gem = new THREE.MeshStandardMaterial({ color: '#8fe6ff', emissive: '#3ac8ff', emissiveIntensity: 0.6, roughness: 0.35 });
     part(new THREE.OctahedronGeometry(0.07, 0), this.gem, staff, 0, 1.9, 0);
     this.gemLight = new THREE.PointLight('#5fd8ff', 0, 3.5, 1.6);
     this.gemLight.position.set(0, 1.95, 0);

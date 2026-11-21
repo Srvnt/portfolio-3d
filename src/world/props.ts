@@ -303,7 +303,7 @@ export function createFountain() {
   g.add(column);
   shadowed(g);
 
-  const waterMat = new THREE.MeshStandardMaterial({ color: '#4cc0d8', roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.85, emissive: '#0a3a48' });
+  const waterMat = new THREE.MeshStandardMaterial({ color: '#4cc0d8', roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.85, emissive: '#0a3a48' });
   const pool = new THREE.Mesh(new THREE.CircleGeometry(1.14, 32), waterMat);
   pool.rotation.x = -Math.PI / 2;
   pool.position.y = 0.46;

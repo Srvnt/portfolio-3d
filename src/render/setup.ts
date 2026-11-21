@@ -9,6 +9,21 @@ export const SKY_TOP = new THREE.Color('#6fb6ea');
 export const SKY_HORIZON = new THREE.Color('#f6e7c8');
 export const FOG = new THREE.Color('#cfe6dc');
 
+const SanitizeShader = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      if (any(isnan(c)) || any(isinf(c))) c = texture2D(tDiffuse, vUv + vec2(0.002, 0.0));
+      if (any(isnan(c)) || any(isinf(c))) c = vec4(0.0, 0.0, 0.0, 1.0);
+      gl_FragColor = clamp(c, 0.0, 16.0);
+    }`,
+};
+
 const VignetteShader = {
   uniforms: { tDiffuse: { value: null }, uStrength: { value: 0.32 } },
   vertexShader: `
@@ -72,6 +87,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   const target = new THREE.WebGLRenderTarget(1, 1, { samples: lowEnd ? 0 : 2, type: THREE.HalfFloatType });
   const composer = new EffectComposer(renderer, target);
   composer.addPass(new RenderPass(scene, camera));
+  composer.addPass(new ShaderPass(SanitizeShader));
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.32, 0.55, 0.92);
   composer.addPass(bloom);
   composer.addPass(new ShaderPass(VignetteShader));

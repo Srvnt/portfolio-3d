@@ -71,7 +71,7 @@ function eyes(parent: THREE.Object3D, y: number, z: number, spread: number, r: n
 function buildJelly(hue: number) {
   const body = new THREE.Group();
   const col = new THREE.Color().setHSL(hue, 0.65, 0.55);
-  const skin = std(col, { roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.88, emissive: col.clone().multiplyScalar(0.18) });
+  const skin = std(col, { roughness: 0.3, metalness: 0.05, transparent: true, opacity: 0.88, emissive: col.clone().multiplyScalar(0.18) });
   const blob = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 16), skin);
   blob.scale.set(1, 0.78, 1);
   blob.position.y = 0.33;
