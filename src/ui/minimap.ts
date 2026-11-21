@@ -202,6 +202,7 @@ export class Minimap {
     this.g = this.cv.getContext('2d')!;
     this.el.addEventListener('click', () => this.toggle());
     window.addEventListener('keydown', (e) => {
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return;
       if (e.code === 'KeyM' && !e.repeat) this.toggle();
       else if (e.code === 'Escape' && this.full) this.toggle();
     });

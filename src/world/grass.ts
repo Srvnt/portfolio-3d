@@ -59,17 +59,21 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
     shader.uniforms.uTime = uniforms.uTime;
     shader.uniforms.uHero = uniforms.uHero;
     shader.uniforms.uHit = uniforms.uHit;
+    shader.uniforms.uWind = uniforms.uWind;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime; uniform vec2 uHero; uniform vec3 uHit;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime; uniform vec2 uHero; uniform vec3 uHit; uniform float uWind;')
       .replace(
         '#include <project_vertex>',
         `vec4 mvPosition = vec4(transformed, 1.0);
         mvPosition = instanceMatrix * mvPosition;
         float hk = position.y / ${BLADE_H.toFixed(2)}; hk *= hk;
         vec2 ip = instanceMatrix[3].xz;
+        // gusts roll across the meadow; strong wind also leans everything one way
+        float gustW = 0.5 + 0.5 * sin(uTime * (0.9 + uWind) - ip.x * 0.25 - ip.y * 0.1);
         vec2 wind = vec2(
-          sin(uTime * 1.8 + ip.x * 0.35 + ip.y * 0.22) + sin(uTime * 3.1 + ip.x * 1.7) * 0.3,
-          cos(uTime * 1.4 + ip.y * 0.3) * 0.5) * 0.09;
+          sin(uTime * (1.8 + uWind * 3.0) + ip.x * 0.35 + ip.y * 0.22) + sin(uTime * 3.1 + ip.x * 1.7) * 0.3,
+          cos(uTime * (1.4 + uWind * 2.0) + ip.y * 0.3) * 0.5) * (0.09 + uWind * 0.12 * gustW)
+          + vec2(0.85, 0.3) * uWind * (0.12 + 0.18 * gustW);
         vec2 away = ip - uHero;
         float dist = length(away);
         float push = smoothstep(1.0, 0.15, dist);

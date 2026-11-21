@@ -363,6 +363,67 @@ html, body {
   .mm-caption { display: none; }
 }
 
+/* ---------- weather menu ---------- */
+.weather { position: fixed; right: 22px; top: 266px; z-index: 4; display: flex; flex-direction: column; align-items: flex-end; }
+.wx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 10px;
+  font: 800 13px var(--font);
+  color: #fff8e6;
+  background: rgba(16, 24, 58, 0.78);
+  border: 1.5px solid var(--gold-soft);
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(10, 16, 40, 0.3);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.wx-pill:hover, .wx-pill:focus-visible { border-color: var(--gold); outline: none; }
+.wx-icons { font-size: 16px; letter-spacing: 2px; }
+.wx-temp { color: var(--gold); }
+.wx-panel { position: relative; margin-top: 10px; width: 290px; padding: 16px 16px 12px; font-size: 14px; }
+.wx-panel h3 { margin: 0 0 10px; font-family: var(--font-title); font-size: 16px; color: var(--gold); }
+.wx-close { position: absolute; right: 10px; top: 10px; width: 28px; height: 28px; color: var(--ink); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--gold-soft); border-radius: 50%; cursor: pointer; }
+.wx-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+.wx-tabs button, .wx-chip, .wx-search button {
+  padding: 7px 10px;
+  font: 800 13px var(--font);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.wx-tabs button.on, .wx-chip.on { color: #1c2340; background: var(--gold); border-color: var(--gold); }
+.wx-search { display: flex; gap: 6px; }
+.wx-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 12px;
+  font: 600 13px var(--font);
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  outline: none;
+}
+.wx-search input:focus { border-color: var(--gold); }
+.wx-results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.wx-results button { width: 100%; text-align: left; padding: 6px 10px; font: 600 13px var(--font); color: var(--ink); background: rgba(255, 255, 255, 0.05); border: none; border-radius: 8px; cursor: pointer; }
+.wx-results button:hover { background: rgba(242, 198, 107, 0.2); }
+.wx-now { margin: 10px 0 0; color: var(--ink-dim); font-size: 13px; }
+.wx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.wx-chip span { margin-right: 4px; }
+.wx-note { margin: 10px 0 0; color: var(--ink-dim); font-size: 12px; }
+.wx-credit { margin: 12px 0 0; font-size: 11px; color: var(--ink-dim); }
+.wx-credit a { color: var(--gold); }
+@media (max-width: 600px) {
+  .weather { top: 164px; right: 14px; }
+  .wx-place { display: none; }
+  .wx-panel { width: min(290px, calc(100vw - 28px)); }
+}
+
 /* ---------- fishing ---------- */
 .fish-hint {
   position: fixed;

@@ -15,6 +15,8 @@ export interface Content {
   fish: { name: string; fact: string }[];
   /** Text on the warning signs at the edge of the village. */
   warning: string[];
+  /** Default place for live weather (visitors can change it in the weather menu). */
+  weather: { place: string; lat: number; lon: number };
 }
 
 /** All portfolio text lives in content.json — edit that file, not the code. */

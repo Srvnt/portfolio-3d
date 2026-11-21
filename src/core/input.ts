@@ -18,6 +18,7 @@ export class Input {
 
   constructor() {
     window.addEventListener('keydown', (e) => {
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return;
       if (!this.allowDefaults && (MOVE_KEYS.has(e.code) || e.code === 'Space')) e.preventDefault();
       if (!e.repeat) this.fresh.push(e.code);
       this.held.add(e.code);

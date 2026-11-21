@@ -276,17 +276,19 @@ function foliageMaterial(opts: { map?: THREE.Texture; amp: number; minY: number;
   m.customProgramCacheKey = () => `foliage-${opts.amp}-${opts.minY}-${opts.flutter}-${opts.twoSided}-${!!opts.map}`;
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uniforms.uTime;
+    shader.uniforms.uWind = uniforms.uWind;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime; uniform float uWind;')
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         vec2 ip = instanceMatrix[3].xz;
         float hgt = max(position.y - ${opts.minY.toFixed(2)}, 0.0);
         float gust = 0.6 + 0.4 * sin(uTime * 0.35 + ip.x * 0.08);
-        transformed.x += sin(uTime * 1.3 + ip.x * 0.5 + ip.y * 0.3) * ${opts.amp.toFixed(3)} * hgt * gust;
-        transformed.z += cos(uTime * 1.1 + ip.x * 0.3) * ${(opts.amp * 0.6).toFixed(3)} * hgt * gust;
-        transformed += objectNormal * sin(uTime * 6.5 + position.x * 9.0 + position.z * 7.0 + position.y * 5.0 + ip.x) * ${opts.flutter.toFixed(3)} * hgt;`,
+        float wk = 1.0 + uWind * 2.6;
+        transformed.x += (sin(uTime * (1.3 + uWind * 1.8) + ip.x * 0.5 + ip.y * 0.3) + uWind * 1.1) * ${opts.amp.toFixed(3)} * hgt * gust * wk;
+        transformed.z += cos(uTime * (1.1 + uWind * 1.8) + ip.x * 0.3) * ${(opts.amp * 0.6).toFixed(3)} * hgt * gust * wk;
+        transformed += objectNormal * sin(uTime * 6.5 + position.x * 9.0 + position.z * 7.0 + position.y * 5.0 + ip.x) * ${opts.flutter.toFixed(3)} * hgt * (1.0 + uWind * 2.0);`,
       );
     if (opts.twoSided)
       shader.fragmentShader = shader.fragmentShader.replace(

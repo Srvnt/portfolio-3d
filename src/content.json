@@ -155,5 +155,10 @@
     "Beyond this sign lie the wilds. Monsters roam out there!",
     "Fight with Space (or click) and chain three swings into a combo. Watch for attacks being wound up, then dodge.",
     "Hurt? Come back to the village. You'll heal while you rest here."
-  ]
+  ],
+  "weather": {
+    "place": "Helsinki, Finland",
+    "lat": 60.1699,
+    "lon": 24.9384
+  }
 }

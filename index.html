@@ -22,6 +22,32 @@
       <div class="hp"><div class="hp-fill"></div><span class="hp-text"></span></div>
     </div>
     <div id="dmg" aria-hidden="true"></div>
+    <div id="weather" class="weather" hidden>
+      <button class="wx-pill" type="button" aria-expanded="false" aria-label="Weather">
+        <span class="wx-icons"></span><span class="wx-place"></span><span class="wx-temp"></span>
+      </button>
+      <div class="wx-panel window" hidden>
+        <button class="wx-close" type="button" aria-label="Close">✕</button>
+        <h3>Weather</h3>
+        <div class="wx-tabs" role="tablist">
+          <button type="button" data-mode="live">Live</button>
+          <button type="button" data-mode="custom">Custom</button>
+        </div>
+        <div class="wx-live">
+          <form class="wx-search">
+            <input type="search" placeholder="Search a place…" aria-label="Place" autocomplete="off" />
+            <button type="submit">Go</button>
+          </form>
+          <ul class="wx-results"></ul>
+          <p class="wx-now"></p>
+        </div>
+        <div class="wx-custom">
+          <div class="wx-chips"></div>
+          <p class="wx-note">Mix freely, e.g. Sunny + Windy + Snowy.</p>
+        </div>
+        <p class="wx-credit">Live data: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo.com</a></p>
+      </div>
+    </div>
     <div id="minimap" class="minimap" role="button" tabindex="0" aria-label="Map (press M)" hidden>
       <canvas></canvas>
       <span class="mm-compass" aria-hidden="true"><b>N</b></span>

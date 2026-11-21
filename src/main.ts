@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { BUILDINGS, Interactable, WorldMap } from './world/map';
+import { BUILDINGS, Interactable, Tile, WorldMap } from './world/map';
 import { createRenderer } from './render/setup';
 import { createTerrain } from './world/terrain';
 import { createWater } from './world/water';
@@ -14,6 +14,8 @@ import { Fishing } from './fishing';
 import { Enemies } from './combat/enemies';
 import { Hearts } from './combat/pickups';
 import { Minimap } from './ui/minimap';
+import { addWeatherCover, WeatherFX } from './fx/weather';
+import { WeatherUI } from './ui/weather-ui';
 import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples, Swoosh } from './fx/particles';
 import { uniforms } from './world/shared';
 import { Physics } from './physics';
@@ -30,7 +32,7 @@ async function init() {
   // let the title screen paint before the heavy world build
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
-  const { renderer, scene, camera, composer, followSun, lowEnd } = createRenderer(canvas);
+  const { renderer, scene, camera, composer, sun, hemi, bloom, followSun, lowEnd } = createRenderer(canvas);
   const map = new WorldMap();
   const physics = new Physics(map);
 
@@ -162,6 +164,18 @@ async function init() {
   const input = new Input();
   const ui = new UI(content);
   const minimap = new Minimap(map);
+
+  // weather: snow settles / ground gets wet on world surfaces (not on characters)
+  const weather = new WeatherFX(scene, sun, hemi, bloom, renderer);
+  scene.add(weather.group);
+  const skip = new Set<THREE.Object3D>([hero.group, enemies.group, school.group, hearts.group]);
+  scene.traverse((o) => {
+    for (let p: THREE.Object3D | null = o; p; p = p.parent) if (skip.has(p)) return;
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(addWeatherCover);
+  });
+  const weatherUI = new WeatherUI((s) => weather.set(s), { name: content.weather.place, lat: content.weather.lat, lon: content.weather.lon });
   const chestMarkers = map.interactables.filter((it) => it.kind === 'chest').map((it) => ({ x: it.x, z: it.z, id: it.id }));
   const labelled = [...map.interactables, riverPrompt];
   ui.setLabels(labelled);
@@ -176,6 +190,7 @@ async function init() {
     state = 'intro';
     ui.showHud(content.profile.name);
     minimap.show();
+    weatherUI.show();
   });
 
   const nearest = (): Interactable | null => {
@@ -317,6 +332,12 @@ async function init() {
     // the village is a safe haven: slowly heal there
     if (!hero.down && map.isSafe(hero.x, hero.z) && hero.hp < hero.maxHp) hero.heal(6 * dt);
     ui.setHp(hero.hp, hero.maxHp);
+    weather.update(dt, focus);
+    // raindrops dimpling the river near the hero
+    if (weather.current.rain > 0.1 && Math.random() < dt * 30 * weather.current.rain) {
+      const rx = hero.x + (Math.random() - 0.5) * 24, rz = hero.z + (Math.random() - 0.5) * 18;
+      if (map.tile(Math.floor(rx), Math.floor(rz)) === Tile.Water) ripples.emit(new THREE.Vector3(rx, 0, rz), 0.25, 0.6);
+    }
     minimap.update({
       hero: { x: hero.x, z: hero.z, heading: hero.heading },
       enemies: enemies.list.map((e) => ({ x: e.x, z: e.z, kind: e.kind, alive: e.state !== 'dead' })),

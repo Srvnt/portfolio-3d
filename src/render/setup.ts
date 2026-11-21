@@ -99,5 +99,5 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     sun.position.copy(focus).add(SUN_OFFSET);
   }
 
-  return { renderer, scene, camera, composer, sun, followSun, lowEnd };
+  return { renderer, scene, camera, composer, sun, hemi, bloom, followSun, lowEnd };
 }
