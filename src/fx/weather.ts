@@ -180,6 +180,27 @@ function starsMesh() {
   return pts;
 }
 
+export function timeOfDay(clock: SunClock, nowMs: number): number {
+  return (((nowMs + clock.utcOffset * 1000) % DAY_MS) + DAY_MS) % DAY_MS;
+}
+
+export function sunPosition(clock: SunClock | null, time: TimeChoice, tod: number | null): { el: number; p: number } {
+  if (time === 'day') return { el: 0.75, p: 0.42 };
+  if (time === 'dusk') return { el: 0.04, p: 0.97 };
+  if (time === 'night') return { el: -0.7, p: 0.5 };
+  if (!clock || tod === null) return { el: 0.7, p: 0.42 };
+  if (clock.sunrise === null || clock.sunset === null) return clock.isDay ? { el: 0.35, p: 0.5 } : { el: -0.6, p: 0.5 };
+  const sr = clock.sunrise, ss = clock.sunset, len = ss - sr;
+  const peak = THREE.MathUtils.clamp(len / (16 * 3_600_000), 0.25, 0.9);
+  if (tod >= sr && tod <= ss) {
+    const p = (tod - sr) / len;
+    return { el: Math.sin(Math.PI * p) * peak, p };
+  }
+  const nightLen = DAY_MS - len;
+  const q = ((tod - ss + DAY_MS) % DAY_MS) / nightLen;
+  return { el: -Math.sin(Math.PI * q) * 0.8, p: q < 0.5 ? 1 : 0 };
+}
+
 export class WeatherFX {
   group = new THREE.Group();
   target: WeatherState = { ...CLEAR };
@@ -215,27 +236,11 @@ export class WeatherFX {
   setTime(t: TimeChoice) { this.time = t; }
 
   localTimeOfDay(): number | null {
-    if (!this.clock) return null;
-    return (((Date.now() + this.clock.utcOffset * 1000) % DAY_MS) + DAY_MS) % DAY_MS;
+    return this.clock ? timeOfDay(this.clock, Date.now()) : null;
   }
 
   private sunPosition(): { el: number; p: number } {
-    if (this.time === 'day') return { el: 0.75, p: 0.42 };
-    if (this.time === 'dusk') return { el: 0.04, p: 0.97 };
-    if (this.time === 'night') return { el: -0.7, p: 0.5 };
-    const c = this.clock;
-    const tod = this.localTimeOfDay();
-    if (!c || tod === null) return { el: 0.7, p: 0.42 };
-    if (c.sunrise === null || c.sunset === null) return c.isDay ? { el: 0.35, p: 0.5 } : { el: -0.6, p: 0.5 };
-    const sr = c.sunrise, ss = c.sunset, len = ss - sr;
-    const peak = THREE.MathUtils.clamp(len / (16 * 3_600_000), 0.25, 0.9);
-    if (tod >= sr && tod <= ss) {
-      const p = (tod - sr) / len;
-      return { el: Math.sin(Math.PI * p) * peak, p };
-    }
-    const nightLen = DAY_MS - len;
-    const q = ((tod - ss + DAY_MS) % DAY_MS) / nightLen;
-    return { el: -Math.sin(Math.PI * q) * 0.8, p: q < 0.5 ? 1 : 0 };
+    return sunPosition(this.clock, this.time, this.localTimeOfDay());
   }
 
   update(dt: number, focus: THREE.Vector3) {

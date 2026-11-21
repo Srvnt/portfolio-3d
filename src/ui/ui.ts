@@ -13,7 +13,7 @@ function links(list: { label: string; url: string }[]) {
     .join('')}</div>`;
 }
 
-function renderSection(id: SectionId, c: Content): string {
+export function renderSection(id: SectionId, c: Content): string {
   switch (id) {
     case 'about':
       return `<h2 id="panel-title">${esc(c.about.title)}</h2>
