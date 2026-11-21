@@ -2,11 +2,21 @@ import raw from './content.json';
 
 interface Link { label: string; url: string }
 
+export interface SkillNode {
+  name: string;
+  /** short text or emoji shown in the gem; defaults to the first letters */
+  icon?: string;
+  /** optional tooltip text */
+  note?: string;
+  children?: SkillNode[];
+}
+
 export interface Content {
   profile: { name: string; role: string; tagline: string; location: string };
   about: { title: string; paragraphs: string[] };
   projects: { title: string; year: string; role: string; summary: string; tags: string[]; links: Link[] }[];
-  skills: { name: string; level: number; category: string }[];
+  /** Skill tree: main skills on top; children are skills they unlocked. */
+  skills: SkillNode[];
   experience: { period: string; title: string; company: string; summary: string }[];
   contact: { intro: string; links: Link[] };
   sign: string[];

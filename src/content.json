@@ -58,34 +58,48 @@
   ],
   "skills": [
     {
-      "name": "TypeScript",
-      "level": 5,
-      "category": "Weapons · Languages"
-    },
-    {
-      "name": "Python",
-      "level": 3,
-      "category": "Weapons · Languages"
-    },
-    {
-      "name": "React",
-      "level": 4,
-      "category": "Armour · Frameworks"
-    },
-    {
-      "name": "Three.js",
-      "level": 4,
-      "category": "Armour · Frameworks"
-    },
-    {
-      "name": "Figma",
-      "level": 3,
-      "category": "Tools"
-    },
-    {
       "name": "Git",
-      "level": 4,
-      "category": "Tools"
+      "icon": "⎇"
+    },
+    {
+      "name": "Java",
+      "icon": "☕",
+      "children": [
+        {
+          "name": "Spring Framework",
+          "icon": "🌱"
+        },
+        {
+          "name": "Spring Boot",
+          "icon": "🚀"
+        }
+      ]
+    },
+    {
+      "name": "JavaScript",
+      "icon": "JS",
+      "children": [
+        {
+          "name": "TypeScript",
+          "icon": "TS"
+        },
+        {
+          "name": "Three.js",
+          "icon": "3D"
+        },
+        {
+          "name": "React",
+          "icon": "⚛"
+        },
+        {
+          "name": "Next.js",
+          "icon": "N"
+        }
+      ]
+    },
+    {
+      "name": "SQL",
+      "icon": "🗄"
     }
   ],
   "experience": [

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Interactable, SectionId } from '../world/map';
-import type { Content } from '../content';
+import type { Content, SkillNode } from '../content';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const esc = (s: string) =>
@@ -31,15 +31,25 @@ function renderSection(id: SectionId, c: Content): string {
           </article>`)
           .join('')}</div>`;
     case 'skills': {
-      const groups = new Map<string, typeof c.skills>();
-      for (const s of c.skills) groups.set(s.category, [...(groups.get(s.category) ?? []), s]);
-      return `<h2 id="panel-title">Smithy</h2><p class="meta">Equipment — skills and tools</p>
-        ${[...groups]
-          .map(([cat, list]) => `<h3>${esc(cat)}</h3><ul class="skills">${list
-            .map((s) => `<li><span>${esc(s.name)}</span>
-              <span class="bar" role="img" aria-label="${s.level} of 5">${'<i class="on"></i>'.repeat(s.level)}${'<i></i>'.repeat(5 - s.level)}</span></li>`)
-            .join('')}</ul>`)
-          .join('')}`;
+      // RPG skill tree: main skills across the top, the skills they unlocked branching below.
+      // Nodes light up one after another (staggered animation delay).
+      let order = 0;
+      const node = (n: SkillNode, major: boolean): string => {
+        const icon = n.icon ?? n.name.slice(0, 2);
+        const delay = `style="--d:${(order++ * 0.09).toFixed(2)}s"`;
+        const kids = n.children?.length
+          ? `<span class="st-stem" ${delay}></span><div class="st-kids">${n.children.map((k) => node(k, false)).join('')}</div>`
+          : '';
+        return `<div class="st-node${major ? ' major' : ''}"${n.note ? ` title="${esc(n.note)}"` : ''}>
+            <span class="st-gem" ${delay}><span>${esc(icon)}</span><i class="st-check" aria-hidden="true">✓</i></span>
+            <span class="st-name">${esc(n.name)}</span>
+            ${kids}
+          </div>`;
+      };
+      const total = (list: SkillNode[]): number => list.reduce((a, n) => a + 1 + total(n.children ?? []), 0);
+      return `<h2 id="panel-title">Smithy</h2>
+        <p class="meta">Skill tree · ${total(c.skills)} of ${total(c.skills)} skills unlocked</p>
+        <div class="skill-tree" role="list">${c.skills.map((n) => `<div class="st-branch" role="listitem">${node(n, true)}</div>`).join('')}</div>`;
     }
     case 'experience':
       return `<h2 id="panel-title">Library</h2><p class="meta">Chronicles — work experience</p>
