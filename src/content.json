@@ -8,8 +8,8 @@
   "about": {
     "title": "About me",
     "paragraphs": [
-      "Placeholder: a short intro. Who you are, what you are great at, and what kind of work you want next.",
-      "Placeholder: a second paragraph with a little personality — what drives you outside of work."
+      "Full-stack developer focused on Java, React, PostgreSQL, and cloud infrastructure (Azure, AWS). Experienced in TDD and advanced CI/CD automation, combining rigorous software engineering with modern AI-assisted development to build clean, scalable, and dependable systems.",
+      "Outside of coding, I spend as much time outdoors as possible—whether I’m out on the golf course, fishing, hunting, or skiing in the winter. When I'm not out in nature, you'll usually find me at the gym staying active."
     ]
   },
   "projects": [
@@ -76,19 +76,19 @@
       ]
     },
     {
-  "name": "Python",
-  "icon": "🐍",
-  "children": [
-    {
-      "name": "Django",
-      "icon": "🎸"
+      "name": "Python",
+      "icon": "🐍",
+      "children": [
+        {
+          "name": "Django",
+          "icon": "🎸"
+        },
+        {
+          "name": "Django ORM",
+          "icon": "🔗"
+        }
+      ]
     },
-    {
-      "name": "Django ORM",
-      "icon": "🔗"
-    }
-  ]
-},
     {
       "name": "JavaScript",
       "icon": "JS",
@@ -112,19 +112,19 @@
       ]
     },
     {
-  "name": "Communications",
-  "icon": "💬",
-  "children": [
-    {
-      "name": "Teams",
-      "icon": "👥"
+      "name": "Communications",
+      "icon": "💬",
+      "children": [
+        {
+          "name": "Teams",
+          "icon": "👥"
+        },
+        {
+          "name": "Slack",
+          "icon": "#️⃣"
+        }
+      ]
     },
-    {
-      "name": "Slack",
-      "icon": "#️⃣"
-    }
-  ]
-},
     {
       "name": "Cloud platforms",
       "icon": "☁️",
@@ -140,39 +140,39 @@
       ]
     },
     {
-  "name": "Databases",
-  "icon": "🛢️",
-  "children": [
-    {
-      "name": "SQL",
-      "icon": "🗄️",
+      "name": "Databases",
+      "icon": "🛢️",
       "children": [
         {
-          "name": "Postgres",
-          "icon": "🐘"
+          "name": "SQL",
+          "icon": "🗄️",
+          "children": [
+            {
+              "name": "Postgres",
+              "icon": "🐘"
+            },
+            {
+              "name": "MariaDB",
+              "icon": "🦭"
+            }
+          ]
         },
         {
-          "name": "MariaDB",
-          "icon": "🦭"
-        }
-      ]
-    },
-    {
-      "name": "NoSQL",
-      "icon": "🗄️",
-      "children": [
-        {
-          "name": "MongoDB",
-          "icon": "🍃"
-        },
-        {
-          "name": "CosmosDB",
-          "icon": "🪐"
+          "name": "NoSQL",
+          "icon": "🗄️",
+          "children": [
+            {
+              "name": "MongoDB",
+              "icon": "🍃"
+            },
+            {
+              "name": "CosmosDB",
+              "icon": "🪐"
+            }
+          ]
         }
       ]
     }
-  ]
-}
   ],
   "experience": [
     {
@@ -211,13 +211,18 @@
       }
     ]
   },
-  "sign": [
-    "Welcome, traveller!",
-    "Each building holds a chapter of my story: Home, the Guild, the Smithy, the Library and the Post Office.",
-    "You can fish from any riverbank or bridge. Every fish you catch tells you something about me.",
-    "Press Space (or click) to swing your sword. Bushes grow back, so slash away!",
-    "Walk to a door and press E to enter. Treasure is hidden in the woods…"
-  ],
+  "guide": {
+    "name": "Elder Oswin",
+    "lines": [
+      "Ah, a traveller! Welcome to our little village. I'm Oswin, I look after things around here.",
+      "Every building holds a chapter of Petri's story: Home, the Guild, the Smithy, the Library and the Post Office. Walk up to a door and press E to step inside.",
+      "Move with WASD or the arrow keys and hold Shift to run. On a phone, just drag to walk.",
+      "That sword of yours? Press Space or click to swing it. Chain three swings into a combo. The bushes grow back, so slash away!",
+      "Monsters roam the wilds beyond the village. Watch them wind up before they strike, then get out of the way. Rest here in the village to heal.",
+      "Fond of fishing? Cast from any riverbank or bridge. Every fish you catch tells you something about Petri.",
+      "Press M for the map, and peek at the weather badge to borrow the sky of any place in the world. Oh, and treasure is hidden in the woods… good luck!"
+    ]
+  },
   "secrets": [
     "You found a fun fact! I think I don't fit the usual developer stereotype well.",
     "You found a side quest! I'm always doing some side projects, it might be testing some new library or new take on a old project",

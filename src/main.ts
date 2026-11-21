@@ -14,6 +14,7 @@ import { Fishing } from './fishing';
 import { Enemies } from './combat/enemies';
 import { Hearts } from './combat/pickups';
 import { Minimap } from './ui/minimap';
+import { Npc } from './world/npc';
 import { addWeatherCover, WeatherFX } from './fx/weather';
 import { WeatherUI } from './ui/weather-ui';
 import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples, Swoosh } from './fx/particles';
@@ -55,9 +56,11 @@ async function init() {
   const gate = createGate(content.profile.name, physics);
   scene.add(gate.group);
 
+  let guide: Npc | null = null;
   const chests = new Map<string, Chest>();
   for (const it of map.interactables) {
     if (it.kind === 'sign') scene.add(createSign(it.x, it.z - 0.1));
+    if (it.kind === 'npc') { guide = new Npc(it.x, it.z); scene.add(guide.group); }
     if (it.kind === 'chest') {
       const c = new Chest(it.x, it.z);
       chests.set(it.id, c);
@@ -213,8 +216,11 @@ async function init() {
       ui.openPanel(it.section);
     } else if (it.kind === 'sign') {
       state = 'dialog';
-      const warn = it.id.startsWith('warn');
-      ui.dialog(warn ? 'Warning' : 'Signpost', warn ? content.warning : content.sign, () => (state = 'play'));
+      ui.dialog('Warning', content.warning, () => (state = 'play'));
+    } else if (it.kind === 'npc') {
+      state = 'dialog';
+      guide?.talk();
+      ui.dialog(content.guide.name, content.guide.lines, () => (state = 'play'));
     } else if (it.kind === 'chest') {
       const chest = chests.get(it.id)!;
       const already = chest.opened;
@@ -323,6 +329,7 @@ async function init() {
     ui.setHp(hero.hp, hero.maxHp);
     weather.update(dt, focus);
     lanterns.setNight(weather.night, t);
+    guide?.update(dt, t, hero.x, hero.z, weather.night);
     gate.setNight(weather.night, t);
     gate.animate(t, weather.current.wind);
     if (weather.current.rain > 0.1 && Math.random() < dt * 30 * weather.current.rain) {

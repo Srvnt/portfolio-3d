@@ -16,7 +16,7 @@ export interface Content {
   skills: SkillNode[];
   experience: { period: string; title: string; company: string; summary: string }[];
   contact: { intro: string; links: Link[] };
-  sign: string[];
+  guide: { name: string; lines: string[] };
   secrets: string[];
   fish: { name: string; fact: string }[];
   warning: string[];

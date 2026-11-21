@@ -17,7 +17,7 @@ export interface Building {
 
 export interface Interactable {
   id: string;
-  kind: 'door' | 'sign' | 'chest' | 'fish';
+  kind: 'door' | 'sign' | 'chest' | 'fish' | 'npc';
   x: number; z: number;
   range: number;
   label: string;
@@ -188,9 +188,9 @@ export class WorldMap {
     for (const side of [-1, 1]) this.occ[this.i(Math.floor(GATE.x + side * GATE.span / 2), Math.floor(GATE.z))] = Occ.Fixture;
     this.occ[this.i(SIGN[0], SIGN[1])] = Occ.Fixture;
     this.interactables.push({
-      id: 'sign', kind: 'sign', label: 'Signpost',
+      id: 'guide', kind: 'npc', label: 'Elder Oswin',
       x: SIGN[0] + 0.5, z: SIGN[1] + 0.5, range: 1.5,
-      labelPos: [SIGN[0] + 0.5, 2.3, SIGN[1] + 0.5],
+      labelPos: [SIGN[0] + 0.5, 2.9, SIGN[1] + 0.5],
     });
 
     for (const [id, x, z] of [['warn-east', 45, 15], ['warn-south', 23, 35]] as [string, number, number][]) {
