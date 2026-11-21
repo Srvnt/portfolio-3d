@@ -8,7 +8,7 @@ import { createGrass } from './world/grass';
 import { createNature, cutBushes, regrowBushes, treesNear } from './world/nature';
 import { createGroundDetails } from './world/decals';
 import { animateFlags, createBuilding } from './world/buildings';
-import { Chest, createBridges, createFountain, createGate, createLanterns, createPushables, createSign } from './world/props';
+import { Chest, createBridges, createFountain, createGate, createHouseSigns, createLanterns, createPushables, createSign } from './world/props';
 import { School, SPECIES } from './world/fish';
 import { Fishing } from './fishing';
 import { Enemies } from './combat/enemies';
@@ -31,6 +31,10 @@ const startText = document.querySelector('.title-start') as HTMLElement;
 
 async function init() {
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  await Promise.race([
+    Promise.all(['800 64px Cinzel', '700 32px Nunito'].map((f) => document.fonts.load(f))),
+    new Promise((r) => setTimeout(r, 2500)),
+  ]).catch(() => undefined);
 
   const { renderer, scene, camera, composer, sun, hemi, bloom, sunOffset, followSun, lowEnd } = createRenderer(canvas);
   const map = new WorldMap();
@@ -52,6 +56,7 @@ async function init() {
     if (r.chimneyTop) chimneys.push(r.chimneyTop);
   }
   scene.add(town);
+  scene.add(createHouseSigns(physics));
   scene.add(createPushables(map, physics));
   const gate = createGate(content.profile.name, physics);
   scene.add(gate.group);
@@ -170,7 +175,7 @@ async function init() {
   scene.traverse((o) => {
     for (let p: THREE.Object3D | null = o; p; p = p.parent) if (skip.has(p)) return;
     const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh) return;
+    if (!mesh.isMesh || mesh.userData.noSnow) return;
     (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(addWeatherCover);
   });
   const weatherUI = new WeatherUI(weather, { name: content.weather.place, lat: content.weather.lat, lon: content.weather.lon });

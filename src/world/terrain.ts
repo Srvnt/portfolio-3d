@@ -94,6 +94,22 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
       ctx.beginPath();
       ctx.roundRect(x + 1.5, y + 1.5, stone - 3, stone - 3, 4);
       ctx.fill();
+      const cxT = (x + stone / 2) / PPU, czT = (y + stone / 2) / PPU;
+      const edgeDist = Math.min(cxT - px0, px1 - cxT, czT - pz0, pz1 - czT);
+      const mossy = Math.max(0, 1 - edgeDist / 1.4);
+      if (hash2(x, y, 41) < mossy * 0.8) {
+        const tufts = 2 + Math.floor(hash2(x, y, 42) * 4);
+        for (let k = 0; k < tufts; k++) {
+          const alongTop = hash2(x, y, 43 + k) < 0.5;
+          const along = 2 + hash2(x, y, 50 + k) * (stone - 4);
+          const mx = alongTop ? x + along : x + 0.7;
+          const my = alongTop ? y + 0.7 : y + along;
+          ctx.fillStyle = ['#557f2e', '#6a9638', '#46702a'][Math.floor(hash2(x, y, 60 + k) * 3)];
+          ctx.beginPath();
+          ctx.arc(mx, my, 1.1 + hash2(x, y, 70 + k) * 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
   }
   ctx.strokeStyle = '#8f846f';
@@ -104,19 +120,6 @@ function paintGround(map: WorldMap): HTMLCanvasElement {
   ctx.restore();
 
   const dr = rng(99);
-  blurred(ctx, 3, (l) => {
-    for (let i = 0; i < 140; i++) {
-      const edge = Math.floor(dr() * 4);
-      const t = dr();
-      const inset = Math.pow(dr(), 2.5) * 2.2;
-      const x = (edge === 0 ? px0 + inset : edge === 1 ? px1 - inset : px0 + t * (px1 - px0)) * PPU;
-      const y = (edge === 2 ? pz0 + inset : edge === 3 ? pz1 - inset : pz0 + t * (pz1 - pz0)) * PPU;
-      l.fillStyle = dr() < 0.5 ? 'rgba(92,130,52,0.75)' : 'rgba(70,108,44,0.7)';
-      l.beginPath();
-      l.arc(x, y, 3 + dr() * 9, 0, Math.PI * 2);
-      l.fill();
-    }
-  });
   ctx.strokeStyle = 'rgba(95,85,68,0.55)';
   ctx.lineWidth = 1.5;
   for (let i = 0; i < 14; i++) {
