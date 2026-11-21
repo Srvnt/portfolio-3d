@@ -42,7 +42,8 @@ const VignetteShader = {
 export function createRenderer(canvas: HTMLCanvasElement) {
   const lowEnd = matchMedia('(pointer: coarse)').matches || navigator.hardwareConcurrency <= 4;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowEnd ? 1 : 1.5));
+  const touch = matchMedia('(pointer: coarse)').matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, touch ? 1.5 : lowEnd ? 1 : 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;

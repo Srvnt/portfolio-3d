@@ -440,11 +440,12 @@ export const HOUSE_ICONS: Record<string, string> = { about: '🏠', projects: '�
 const HOUSE_TITLES: Record<string, string> = { about: 'About', projects: 'Projects', skills: 'Skills', experience: 'Experience', contact: 'Contact' };
 
 function houseSignTexture(icon: string, title: string, place: string) {
-  const W = 640, H = 256;
+  const W = 640, H = 256, SCALE = 2;
   const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
+  c.width = W * SCALE;
+  c.height = H * SCALE;
   const g = c.getContext('2d')!;
+  g.scale(SCALE, SCALE);
   const grad = g.createLinearGradient(0, 0, 0, H);
   grad.addColorStop(0, '#3e5fc4');
   grad.addColorStop(1, '#22378a');
@@ -508,7 +509,7 @@ export function createHouseSigns(physics: Physics) {
     panel.rotation.x = -0.55;
     const back = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.66, 0.06), wood);
     const art = houseSignTexture(HOUSE_ICONS[b.section] ?? '★', HOUSE_TITLES[b.section] ?? place, place);
-    const faceMat = new THREE.MeshStandardMaterial({ map: art, emissiveMap: art, emissive: '#ffffff', emissiveIntensity: 0.45, roughness: 0.55 });
+    const faceMat = new THREE.MeshStandardMaterial({ map: art, emissiveMap: art, emissive: '#ffffff', emissiveIntensity: 0.3, roughness: 0.55 });
     faces.push(faceMat);
     const face = new THREE.Mesh(new THREE.PlaneGeometry(1.56, 0.62), faceMat);
     face.position.z = 0.032;
@@ -530,7 +531,7 @@ export function createHouseSigns(physics: Physics) {
   return {
     group,
     setNight(n: number, t: number) {
-      for (const f of faces) f.emissiveIntensity = 0.45 + n * 0.75;
+      for (const f of faces) f.emissiveIntensity = 0.3 + n * 0.45;
       lampMat.emissiveIntensity = 0.15 + n * 3.2 * (1 + Math.sin(t * 10) * 0.03);
     },
   };
