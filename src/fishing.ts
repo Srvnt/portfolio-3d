@@ -14,7 +14,7 @@ export type FishingResult =
 export interface Meter { needle: number; zone: number; width: number }
 
 const WATER_Y = 0.06;
-const LURE_RADIUS = 7;
+const LURE_RADIUS = 9;
 
 export class Fishing {
   active = false;
@@ -102,7 +102,7 @@ export class Fishing {
           this.splash.emit(b.clone(), new THREE.Vector3(0, 0.6, 0), 0.4, 0.14, 1.5);
           this.phase = 'wait';
           this.t = 0;
-          this.wait = 1.2 + Math.random() * 1.5;
+          this.wait = 0.8 + Math.random() * 1.0;
           this.attract();
           this.hint = 'Fish are coming… don\'t pull until it really bites!';
         }
@@ -120,7 +120,7 @@ export class Fishing {
             this.circleOthers();
             this.phase = 'nibble';
             this.t = 0;
-            this.nibblesLeft = 1 + Math.floor(Math.random() * 3) + Math.round(first.agility * 1.5);
+            this.nibblesLeft = Math.floor(Math.random() * 2) + Math.round(first.agility);
             this.nibbleT = 0.4 + Math.random() * 0.6;
             this.hint = 'Nibbling… wait for it…';
           }
@@ -148,9 +148,9 @@ export class Fishing {
         m.needle = (1 - Math.cos(this.t * this.needleSpeed * Math.PI)) / 2;
         this.alertAt = b.clone().setY(0.9);
         if (pressed) {
-          if (Math.abs(m.needle - m.zone) <= m.width / 2) this.startReel();
+          if (Math.abs(m.needle - m.zone) <= m.width / 2 + 0.04) this.startReel();
           else return this.miss('slip');
-        } else if (this.t > 3.2) {
+        } else if (this.t > 5) {
           return this.miss('late');
         }
         break;
@@ -204,8 +204,8 @@ export class Fishing {
     const ag = this.biter?.agility ?? 0.5;
     this.phase = 'hook';
     this.t = 0;
-    this.needleSpeed = 0.9 + ag * 1.3;
-    const width = 0.24 - ag * 0.13;
+    this.needleSpeed = 0.55 + ag * 0.6;
+    const width = 0.34 - ag * 0.1;
     this.meter = { needle: 0, zone: 0.2 + Math.random() * 0.6, width };
     this.ripples.emit(this.bobber.position, 0.9, 0.9);
     this.splash.emit(this.bobber.position.clone(), new THREE.Vector3(0, 0.9, 0), 0.4, 0.16, 1.6);
