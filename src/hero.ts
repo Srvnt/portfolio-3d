@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { Physics } from './physics';
+import { buildHeroRig, HeroRig } from './hero-model';
 
 const SPEED = 4.2;
 const RUN = 7.4;
@@ -13,13 +14,18 @@ export class Hero {
   group = new THREE.Group();
   body: CANNON.Body;
   speed = 0;
-  private model = new THREE.Group();
+  private rig: HeroRig;
+  private model: THREE.Group;
   private legs: THREE.Group[] = [];
   private arms: THREE.Group[] = [];
   private torso: THREE.Group;
-  private scarfTail: THREE.Mesh;
   private phase = 0;
   private yaw = 0;
+  private prevYaw = 0;
+  private blinkT = 2;
+  private hairLag = new THREE.Vector2();
+  private scarfAngles = [0.4, 0.2, 0.1];
+  private scarfVel = [0, 0, 0];
   fishing = false;
   cast = 1;
   private rod = new THREE.Group();
@@ -40,79 +46,13 @@ export class Hero {
   swing: { combo: number; k: number; yaw: number } | null = null;
 
   constructor(x: number, z: number, physics: Physics) {
-    const skin = mat('#f2c49b');
-    const tunic = mat('#3f9a5c');
-    const pants = mat('#465a92');
-    const boots = mat('#5a3a24');
-    const hair = mat('#3b2618', { flatShading: true });
-    const scarf = mat('#e04848');
-
-    const part = (geo: THREE.BufferGeometry, m: THREE.Material, parent: THREE.Object3D, x = 0, y = 0, z = 0) => {
-      const mesh = new THREE.Mesh(geo, m);
-      mesh.position.set(x, y, z);
-      mesh.castShadow = true;
-      parent.add(mesh);
-      return mesh;
-    };
-
-    for (const side of [-1, 1]) {
-      const pivot = new THREE.Group();
-      pivot.position.set(side * 0.11, 0.48, 0);
-      part(new THREE.CapsuleGeometry(0.085, 0.24, 4, 8), pants, pivot, 0, -0.2, 0);
-      part(new THREE.BoxGeometry(0.17, 0.12, 0.26), boots, pivot, 0, -0.42, 0.04);
-      this.model.add(pivot);
-      this.legs.push(pivot);
-    }
-
-    this.torso = new THREE.Group();
-    this.torso.position.y = 0.5;
-    this.model.add(this.torso);
-    const chest = part(new THREE.CapsuleGeometry(0.2, 0.2, 4, 12), tunic, this.torso, 0, 0.22, 0);
-    chest.scale.set(1, 1, 0.8);
-    part(new THREE.CylinderGeometry(0.215, 0.23, 0.07, 14), mat('#6b4a2b'), this.torso, 0, 0.06, 0);
-    part(new THREE.BoxGeometry(0.08, 0.07, 0.03), mat('#f0c850', { metalness: 0.7, roughness: 0.3 }), this.torso, 0, 0.06, 0.2);
-    part(new THREE.CylinderGeometry(0.22, 0.27, 0.16, 14, 1, true), tunic, this.torso, 0, -0.04, 0);
-
-    for (const side of [-1, 1]) {
-      const pivot = new THREE.Group();
-      pivot.position.set(side * 0.27, 0.42, 0);
-      part(new THREE.CapsuleGeometry(0.06, 0.22, 4, 8), tunic, pivot, 0, -0.15, 0);
-      part(new THREE.SphereGeometry(0.065, 10, 8), skin, pivot, 0, -0.32, 0);
-      pivot.rotation.z = side * 0.12;
-      this.torso.add(pivot);
-      this.arms.push(pivot);
-    }
-
-    const head = new THREE.Group();
-    head.position.y = 0.72;
-    this.torso.add(head);
-    part(new THREE.SphereGeometry(0.24, 20, 16), skin, head);
-    for (const side of [-1, 1]) {
-      const eye = part(new THREE.SphereGeometry(0.035, 10, 8), mat('#2b1e2f', { roughness: 0.2 }), head, side * 0.085, 0.0, 0.215);
-      eye.scale.y = 1.5;
-      const shine = part(new THREE.SphereGeometry(0.012, 6, 4), mat('#ffffff', { emissive: '#ffffff' }), head, side * 0.085 + 0.012, 0.025, 0.245);
-      shine.castShadow = false;
-      const blush = part(new THREE.CircleGeometry(0.035, 10), mat('#f59a8a', { transparent: true, opacity: 0.6 }), head, side * 0.14, -0.06, 0.2);
-      blush.rotation.y = side * 0.5;
-      blush.castShadow = false;
-    }
-    const cap = part(new THREE.SphereGeometry(0.265, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, head, 0, 0.02, -0.02);
-    cap.rotation.x = -0.25;
-    const spike = new THREE.ConeGeometry(0.07, 0.22, 5);
-    const spikes: [number, number, number, number, number][] = [
-      [-0.12, 0.17, 0.16, 0.9, 0.3], [0, 0.2, 0.18, 1.1, 0], [0.12, 0.17, 0.16, 0.9, -0.3],
-      [0.05, 0.28, -0.05, -0.3, -0.2], [-0.1, 0.26, -0.12, -0.6, 0.4], [0.14, 0.2, -0.16, -0.9, -0.6],
-    ];
-    for (const [sx, sy, sz, rx, rz] of spikes) {
-      const s = part(spike, hair, head, sx, sy, sz);
-      s.rotation.set(rx, 0, rz);
-    }
-    part(new THREE.TorusGeometry(0.17, 0.05, 6, 14), scarf, this.torso, 0, 0.5, 0).rotation.x = Math.PI / 2;
-    this.scarfTail = part(new THREE.BoxGeometry(0.1, 0.32, 0.04), scarf, this.torso, 0.08, 0.36, -0.18);
-    this.scarfTail.geometry.translate(0, -0.14, 0);
-    this.scarfTail.position.y = 0.5;
-
+    this.rig = buildHeroRig();
+    this.model = this.rig.root;
+    this.torso = this.rig.torso;
+    this.arms = this.rig.arms.map((a) => a.upper);
+    this.legs = this.rig.legs.map((l) => l.upper);
     this.group.add(this.model);
+    const hand = this.rig.arms[0].end;
 
     const rodDir = new THREE.Vector3(0, -0.75, 0.66).normalize();
     const rodLen = 1.5;
@@ -126,9 +66,8 @@ export class Hero {
     reel.rotation.z = Math.PI / 2;
     this.rodTipObj.position.copy(rodDir).multiplyScalar(rodLen);
     this.rod.add(rodMesh, reel, this.rodTipObj);
-    this.rod.position.set(0, -0.32, 0);
     this.rod.visible = false;
-    this.arms[0].add(this.rod);
+    hand.add(this.rod);
 
     const steel = new THREE.MeshStandardMaterial({ color: '#e6ecf4', metalness: 0.45, roughness: 0.22, emissive: '#1a2230' });
     const gold = mat('#e8b84a', { metalness: 0.6, roughness: 0.3 });
@@ -151,8 +90,7 @@ export class Hero {
     blade.traverse((o) => (o.castShadow = true));
     blade.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0.3).normalize());
     this.sword.add(blade);
-    this.sword.position.set(0, -0.32, 0);
-    this.arms[0].add(this.sword);
+    hand.add(this.sword);
 
     this.body = new CANNON.Body({
       mass: 6,
@@ -205,24 +143,68 @@ export class Hero {
     const running = Math.max(0, (this.speed - SPEED) / (RUN - SPEED));
     this.phase += dt * (5 + this.speed * 1.6);
     const s = Math.sin(this.phase);
-    const swing = 0.75 * moving + running * 0.25;
-    this.legs[0].rotation.x = s * swing;
-    this.legs[1].rotation.x = -s * swing;
-    this.arms[0].rotation.x = -s * swing * 0.9;
-    this.arms[1].rotation.x = s * swing * 0.9;
-    const bob = Math.abs(Math.cos(this.phase)) * 0.06 * moving;
-    const breathe = Math.sin(t * 2.2) * 0.012 * (1 - moving);
-    this.torso.position.y = 0.5 + bob + breathe;
-    this.torso.rotation.x = 0.08 * moving + 0.12 * running;
-    this.model.position.y = bob * 0.5;
-    this.scarfTail.rotation.x = 0.3 + moving * 0.6 + Math.sin(t * 8) * 0.12 * moving;
+    const swing = 0.7 * moving + running * 0.3;
+    const { legs: L, arms: A, head, hair, chest, eyes } = this.rig;
+
+    L[0].upper.rotation.x = s * swing;
+    L[1].upper.rotation.x = -s * swing;
+    L[0].lower.rotation.x = Math.max(0, Math.sin(this.phase - 1.2)) * (0.9 + running * 0.5) * moving;
+    L[1].lower.rotation.x = Math.max(0, Math.sin(this.phase + Math.PI - 1.2)) * (0.9 + running * 0.5) * moving;
+    L[0].end.rotation.x = -L[0].lower.rotation.x * 0.35;
+    L[1].end.rotation.x = -L[1].lower.rotation.x * 0.35;
+
+    A[0].upper.rotation.x = -s * swing * 0.85;
+    A[1].upper.rotation.x = s * swing * 0.85;
+    A[0].lower.rotation.x = -0.25 - moving * 0.35 - running * 0.4 - Math.max(0, -s) * 0.3 * moving;
+    A[1].lower.rotation.x = -0.25 - moving * 0.35 - running * 0.4 - Math.max(0, s) * 0.3 * moving;
+    A[0].upper.rotation.z = -0.1 - running * 0.1;
+    A[1].upper.rotation.z = 0.1 + running * 0.1;
+
+    const bob = Math.abs(Math.cos(this.phase)) * 0.05 * moving;
+    const breathe = Math.sin(t * 2.2) * (1 - moving);
+    this.torso.position.y = 0.5 + bob + breathe * 0.008;
+    this.torso.rotation.x = 0.06 * moving + 0.14 * running;
+    this.torso.rotation.y = s * 0.12 * moving;
+    this.torso.rotation.z = Math.sin(t * 0.8) * 0.015 * (1 - moving);
+    chest.scale.set(1 + breathe * 0.012, 1 + breathe * 0.01, 0.82 + breathe * 0.01);
+    this.model.position.y = bob * 0.4;
+
+    head.rotation.y = -this.torso.rotation.y * 0.8 + Math.sin(t * 0.45) * 0.12 * (1 - moving);
+    head.rotation.x = -0.04 * moving + Math.sin(t * 0.7) * 0.03 * (1 - moving);
+
+    const turn = Math.atan2(Math.sin(this.yaw - this.prevYaw), Math.cos(this.yaw - this.prevYaw)) / Math.max(dt, 1e-3);
+    this.prevYaw = this.yaw;
+    const k = 1 - Math.exp(-dt * 10);
+    this.hairLag.x += (-(moving * 0.12 + running * 0.1) + Math.cos(this.phase * 2) * 0.03 * moving - this.hairLag.x) * k;
+    this.hairLag.y += (THREE.MathUtils.clamp(-turn * 0.02, -0.15, 0.15) - this.hairLag.y) * k;
+    hair.rotation.x = this.hairLag.x;
+    hair.rotation.z = this.hairLag.y;
+
+    const target = [0.35 + moving * 0.7 + running * 0.4, 0.15 + moving * 0.35, 0.1 + moving * 0.3];
+    this.rig.scarf.forEach((seg, i) => {
+      const flutter = Math.sin(t * (6 + i * 2) + i) * (0.08 + moving * 0.12);
+      const accel = (target[i] + flutter - this.scarfAngles[i]) * 60 - this.scarfVel[i] * 9;
+      this.scarfVel[i] += accel * dt;
+      this.scarfAngles[i] += this.scarfVel[i] * dt;
+      seg.rotation.x = this.scarfAngles[i];
+      seg.rotation.z = THREE.MathUtils.clamp(-turn * 0.03, -0.4, 0.4) * (i + 1) * 0.5;
+    });
+
+    this.blinkT -= dt;
+    const blink = this.blinkT < 0.12 ? Math.abs(this.blinkT / 0.06 - 1) : 1;
+    for (const e of eyes) e.scale.y = Math.max(0.1, blink);
+    if (this.blinkT <= 0) this.blinkT = 2.5 + Math.random() * 3;
+
     this.rod.visible = this.fishing;
     this.sword.visible = !this.fishing;
     this.clock = t;
-    this.torso.rotation.y = 0;
-    this.arms[0].rotation.z = -0.12;
     this.swing = null;
-    if (this.attackT >= 0) this.animateAttack(dt);
+    if (this.attackT >= 0) {
+      A[0].lower.rotation.x = 0;
+      A[0].upper.rotation.z = -0.12;
+      this.torso.rotation.y = 0;
+      this.animateAttack(dt);
+    }
     if (this.invuln > 0) this.invuln -= dt;
     if (this.down) {
       this.downT = Math.min(1, this.downT + dt * 3);
@@ -230,10 +212,13 @@ export class Hero {
       this.model.position.y = 0.15 * this.downT;
     } else this.model.rotation.x = 0;
     if (this.fishing) {
-      const swing = this.cast < 1 ? Math.sin(this.cast * Math.PI) * 1.4 : 0;
-      this.arms[0].rotation.x = -1.25 + swing;
-      this.arms[1].rotation.x = -0.6;
-      this.legs[0].rotation.x = this.legs[1].rotation.x = 0;
+      const castSwing = this.cast < 1 ? Math.sin(this.cast * Math.PI) * 1.4 : 0;
+      A[0].upper.rotation.x = -1.25 + castSwing;
+      A[0].lower.rotation.x = 0;
+      A[1].upper.rotation.x = -0.6;
+      A[1].lower.rotation.x = -0.7;
+      this.torso.rotation.y = 0;
+      for (const l of L) { l.upper.rotation.x = 0; l.lower.rotation.x = 0; l.end.rotation.x = 0; }
     }
     this.model.rotation.y = this.yaw;
   }
@@ -300,8 +285,11 @@ export class Hero {
       arm.rotation.z = this.combo === 0 ? -0.1 : 0.2;
     }
     this.arms[1].rotation.x = -0.5;
+    this.rig.arms[1].lower.rotation.x = -0.8;
     this.legs[0].rotation.x = 0.35;
     this.legs[1].rotation.x = -0.25;
+    this.rig.legs[0].lower.rotation.x = 0.25;
+    this.rig.legs[1].lower.rotation.x = 0.15;
     this.swing = { combo: this.combo, k, yaw: this.yaw };
     if (!this.hitDone && k >= 0.42) {
       this.hitDone = true;
