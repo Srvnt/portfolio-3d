@@ -21,6 +21,8 @@ import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples, Swoosh }
 import { uniforms } from './world/shared';
 import { Physics } from './physics';
 import { Hero } from './hero';
+import { loadHeroAssets } from './hero-assets';
+import { loadMonsterAssets } from './combat/monster-assets';
 import { ATTACK_KEYS, Input, INTERACT_KEYS, USE_KEYS } from './core/input';
 import { setupTouch } from './ui/touch';
 import { UI } from './ui/ui';
@@ -79,7 +81,8 @@ async function init() {
   const butterflies = new Butterflies(map, lowEnd ? 6 : 12);
   scene.add(createMotes(map, lowEnd ? 140 : 260), smoke.group, dust.group, butterflies.group);
 
-  const hero = new Hero(map.start.x, map.start.z, physics);
+  const [heroAssets, monsterAssets] = await Promise.all([loadHeroAssets(), loadMonsterAssets()]);
+  const hero = new Hero(map.start.x, map.start.z, physics, heroAssets);
   hero.face(map.start.x, map.start.z - 1);
   scene.add(hero.group);
 
@@ -105,7 +108,7 @@ async function init() {
         1.3 + Math.random() * 0.6, 0.28 + Math.random() * 0.2, 0,
       );
   };
-  const enemies = new Enemies(map, lowEnd ? 12 : 18);
+  const enemies = new Enemies(map, monsterAssets, lowEnd ? 12 : 18);
   const hearts = new Hearts();
   const shockRings = new Ripples(6, '#ffb070', 0.3);
   const poof = new Puffs(40, '#f4e8ff', 0.9);
@@ -216,6 +219,7 @@ async function init() {
   const interact = (it: Interactable) => {
     hero.face(it.x, it.z);
     hero.stop();
+    if (it.kind !== 'fish') hero.playInteract();
     if (it.kind === 'door' && it.section) {
       state = 'panel';
       input.allowDefaults = true;

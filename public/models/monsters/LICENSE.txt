@@ -1,0 +1,4 @@
+Monster models by Quaternius (Ultimate Monsters / Ultimate Platformer packs) (https://quaternius.com)
+License: CC0 1.0 Universal (Public Domain Dedication)
+https://creativecommons.org/publicdomain/zero/1.0/
+Files: GreenBlob, PinkBlob, GreenSpikyBlob, Mushnub, Mushnub_Evolved, Cactoro, CactoroBig, Ghost, Goleling, Goleling_Evolved, Dino, Frog, Monkroose, MushroomKing, Yeti, Orc

@@ -73,6 +73,7 @@ export class Fishing {
     this.biter = null;
     this.active = false;
     this.hero.fishing = false;
+    this.hero.reeling = false;
     this.bobber.visible = this.line.visible = false;
     this.alertAt = null;
     this.hint = null;
@@ -165,6 +166,7 @@ export class Fishing {
         f.tail.rotation.y = Math.sin(t * 30) * 0.7;
         b.copy(f.group.position);
         this.hero.cast = 0.5 + k * 0.5;
+        this.hero.reeling = k < 0.8;
         if (k >= 1) {
           f.group.rotation.x = 0;
           this.school.caught(f, this.hero.z);

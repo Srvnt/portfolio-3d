@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EnemyKind, SPAWN_ZONES, WorldMap } from '../world/map';
+import { MonsterAssets, instantiate } from './monster-assets';
 
 interface EnemyStats {
   name: string;
@@ -17,9 +18,9 @@ interface EnemyStats {
 }
 
 export const STATS: Record<EnemyKind, EnemyStats> = {
-  jelly: { name: 'Jelly', hp: 34, dmg: 8, speed: 1.9, radius: 0.42, aggro: 7, reach: 2.4, windup: 0.55, cooldown: 1.2, knock: 7, armored: false, barY: 1.0 },
-  beetle: { name: 'Thornback', hp: 60, dmg: 14, speed: 2.6, radius: 0.5, aggro: 8.5, reach: 5, windup: 0.7, cooldown: 1.6, knock: 4.5, armored: false, barY: 1.05 },
-  brute: { name: 'Mushroom Brute', hp: 130, dmg: 22, speed: 1.3, radius: 0.62, aggro: 7, reach: 1.9, windup: 0.95, cooldown: 2.2, knock: 1.8, armored: true, barY: 2.1 },
+  jelly: { name: 'Jelly', hp: 34, dmg: 8, speed: 1.9, radius: 0.42, aggro: 7, reach: 2.4, windup: 0.55, cooldown: 1.2, knock: 7, armored: false, barY: 0.85 },
+  beetle: { name: 'Thornback', hp: 60, dmg: 14, speed: 2.6, radius: 0.5, aggro: 8.5, reach: 5, windup: 0.7, cooldown: 1.6, knock: 4.5, armored: false, barY: 1.3 },
+  brute: { name: 'Mushroom Brute', hp: 130, dmg: 22, speed: 1.3, radius: 0.62, aggro: 7, reach: 1.9, windup: 0.95, cooldown: 2.2, knock: 1.8, armored: true, barY: 2.0 },
 };
 
 type State = 'wander' | 'chase' | 'windup' | 'attack' | 'recover' | 'stagger' | 'dead' | 'home';
@@ -30,7 +31,10 @@ export interface Enemy {
   group: THREE.Group;
   body: THREE.Object3D;
   flashMats: THREE.MeshStandardMaterial[];
-  parts: Record<string, THREE.Object3D>;
+  mixer: THREE.AnimationMixer;
+  actions: Record<string, THREE.AnimationAction>;
+  clip: string;
+  prev: State;
   x: number; z: number; yaw: number;
   kx: number; kz: number;
   hp: number; maxHp: number;
@@ -51,129 +55,6 @@ export interface Enemy {
   danger?: THREE.Mesh;
 }
 
-const std = (color: THREE.ColorRepresentation, extra: THREE.MeshStandardMaterialParameters = {}) =>
-  new THREE.MeshStandardMaterial({ color, roughness: 0.6, ...extra });
-
-function eyes(parent: THREE.Object3D, y: number, z: number, spread: number, r: number, glow?: string) {
-  for (const s of [-1, 1]) {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), glow ? std(glow, { emissive: glow, emissiveIntensity: 2.2 }) : std('#1a1420', { roughness: 0.2 }));
-    e.position.set(s * spread, y, z);
-    e.scale.y = 1.3;
-    parent.add(e);
-    if (!glow) {
-      const shine = new THREE.Mesh(new THREE.SphereGeometry(r * 0.35, 6, 4), new THREE.MeshBasicMaterial({ color: '#fff' }));
-      shine.position.set(s * spread + r * 0.3, y + r * 0.4, z + r * 0.75);
-      parent.add(shine);
-    }
-  }
-}
-
-function buildJelly(hue: number) {
-  const body = new THREE.Group();
-  const col = new THREE.Color().setHSL(hue, 0.65, 0.55);
-  const skin = std(col, { roughness: 0.3, metalness: 0.05, transparent: true, opacity: 0.88, emissive: col.clone().multiplyScalar(0.18) });
-  const blob = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 16), skin);
-  blob.scale.set(1, 0.78, 1);
-  blob.position.y = 0.33;
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), std(col.clone().multiplyScalar(0.55)));
-  core.position.y = 0.3;
-  const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.18, 6), skin);
-  tuft.position.set(0.05, 0.68, -0.02);
-  tuft.rotation.z = -0.4;
-  body.add(core, blob, tuft);
-  eyes(body, 0.42, 0.32, 0.13, 0.055);
-  return { body, flash: [skin], parts: { blob } };
-}
-
-function buildBeetle(hue: number) {
-  const body = new THREE.Group();
-  const shellCol = new THREE.Color().setHSL(hue, 0.55, 0.32);
-  const shell = std(shellCol, { roughness: 0.3, metalness: 0.25 });
-  const dark = std('#2a1c18');
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.5, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), shell);
-  dome.scale.set(0.85, 0.75, 1.1);
-  dome.position.y = 0.22;
-  const belly = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.4, 0.12, 16), dark);
-  belly.scale.set(1, 1, 1.3);
-  belly.position.y = 0.2;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), dark);
-  head.position.set(0, 0.28, 0.55);
-  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.34, 6), std('#e8dcc0'));
-  horn.position.set(0, 0.42, 0.7);
-  horn.rotation.x = 0.9;
-  body.add(dome, belly, head, horn);
-  for (let i = 0; i < 5; i++) {
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 5), std('#e8dcc0'));
-    spike.position.set(0, 0.55 - Math.abs(i - 2) * 0.05, -0.35 + i * 0.16);
-    spike.rotation.x = -0.3;
-    body.add(spike);
-  }
-  const legs: THREE.Object3D[] = [];
-  for (const s of [-1, 1])
-    for (let i = 0; i < 3; i++) {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.32, 5), dark);
-      leg.geometry.translate(0, -0.16, 0);
-      leg.position.set(s * 0.38, 0.24, -0.25 + i * 0.25);
-      leg.rotation.z = s * 0.9;
-      body.add(leg);
-      legs.push(leg);
-    }
-  eyes(body, 0.32, 0.72, 0.09, 0.045, '#ffd23a');
-  return { body, flash: [shell], parts: { leg0: legs[0], leg1: legs[1], leg2: legs[2], leg3: legs[3], leg4: legs[4], leg5: legs[5], dome } };
-}
-
-function buildBrute(hue: number) {
-  const body = new THREE.Group();
-  const capCol = new THREE.Color().setHSL(hue, 0.65, 0.42);
-  const cap = std(capCol, { roughness: 0.45 });
-  const stem = std('#efe2c4', { roughness: 0.8 });
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.48, 0.9, 16), stem);
-  trunk.position.y = 0.5;
-  const capMesh = new THREE.Mesh(new THREE.SphereGeometry(0.8, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2), cap);
-  capMesh.scale.set(1, 0.7, 1);
-  capMesh.position.y = 0.88;
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.07, 6, 24), cap);
-  rim.rotation.x = Math.PI / 2;
-  rim.position.y = 0.9;
-  const capGroup = new THREE.Group();
-  capGroup.add(capMesh, rim);
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2 + 0.3, r = 0.35 + (i % 3) * 0.13;
-    const spot = new THREE.Mesh(new THREE.SphereGeometry(0.09 + (i % 2) * 0.04, 8, 6), std('#fff6e8'));
-    spot.scale.y = 0.4;
-    spot.position.set(Math.cos(a) * r, 0.88 + Math.sqrt(Math.max(0, 0.64 - r * r)) * 0.7 - 0.02, Math.sin(a) * r);
-    capGroup.add(spot);
-  }
-  const arms: THREE.Object3D[] = [];
-  for (const s of [-1, 1]) {
-    const pivot = new THREE.Group();
-    pivot.position.set(s * 0.42, 0.7, 0.05);
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.32, 4, 8), stem);
-    arm.position.y = -0.22;
-    const fist = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), stem);
-    fist.position.y = -0.45;
-    pivot.add(arm, fist);
-    pivot.rotation.z = s * 0.35;
-    body.add(pivot);
-    arms.push(pivot);
-  }
-  for (const s of [-1, 1]) {
-    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 6), stem);
-    foot.scale.set(1, 0.6, 1.3);
-    foot.position.set(s * 0.22, 0.08, 0.08);
-    body.add(foot);
-  }
-  body.add(trunk, capGroup);
-  eyes(body, 0.66, 0.38, 0.13, 0.06);
-  for (const s of [-1, 1]) {
-    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.035, 0.04), std('#4a3020'));
-    brow.position.set(s * 0.13, 0.76, 0.42);
-    brow.rotation.z = s * 0.4;
-    body.add(brow);
-  }
-  return { body, flash: [cap, stem], parts: { cap: capGroup, armL: arms[0], armR: arms[1] } };
-}
-
 function healthBar(width: number) {
   const g = new THREE.Group();
   const mk = (color: string, w: number, h: number, z: number) => {
@@ -191,17 +72,23 @@ function healthBar(width: number) {
   return { bar: g, fill };
 }
 
+const DEATH_SINK = 0.9;
+const DEATH_HIDE = 1.7;
+const FLASH = new THREE.Color(1.6, 1.6, 1.6);
+const WALK_PACE: Record<EnemyKind, number> = { jelly: 1.1, beetle: 1.3, brute: 1.0 };
+
 export interface SlashHit { enemy: Enemy; dmg: number; crit: boolean; killed: boolean }
 
 export class Enemies {
   group = new THREE.Group();
   list: Enemy[] = [];
+  private picked: Partial<Record<EnemyKind, number>> = {};
   onHeroHit: (dmg: number, fromX: number, fromZ: number) => void = () => {};
   onShockwave: (x: number, z: number, r: number) => void = () => {};
   onDeath: (e: Enemy) => void = () => {};
   onStep: (x: number, z: number) => void = () => {};
 
-  constructor(private map: WorldMap, count: number) {
+  constructor(private map: WorldMap, private assets: MonsterAssets, count: number) {
     let n = 0;
     while (n < count) {
       for (let zi = 0; zi < SPAWN_ZONES.length && n < count; zi++) {
@@ -225,19 +112,24 @@ export class Enemies {
 
   private spawn(kind: EnemyKind, zone: number) {
     const stats = STATS[kind];
-    const hue = kind === 'jelly' ? [0.3, 0.55, 0.85, 0.12][Math.floor(Math.random() * 4)] : kind === 'beetle' ? [0.0, 0.08, 0.7][Math.floor(Math.random() * 3)] : [0.0, 0.58, 0.08][Math.floor(Math.random() * 3)];
-    const built = kind === 'jelly' ? buildJelly(hue) : kind === 'beetle' ? buildBeetle(hue) : buildBrute(hue);
-    const size = 0.85 + Math.random() * 0.35;
+    const models = this.assets[kind];
+    const n = (this.picked[kind] = (this.picked[kind] ?? Math.floor(Math.random() * models.length)) + 1);
+    const model = models[n % models.length];
+    const { root, mats } = instantiate(model);
+    const size = 0.85 + Math.random() * 0.3;
+    const body = new THREE.Group();
+    body.add(root);
     const group = new THREE.Group();
-    built.body.scale.setScalar(size);
-    built.body.traverse((o) => { o.castShadow = true; });
-    group.add(built.body);
+    group.add(body);
+    const mixer = new THREE.AnimationMixer(root);
+    const actions: Record<string, THREE.AnimationAction> = {};
+    for (const [name, clip] of Object.entries(model.clips)) actions[name] = actions[clip.name] ?? mixer.clipAction(clip);
     const { bar, fill } = healthBar(kind === 'brute' ? 1.1 : 0.8);
     this.group.add(group, bar);
     const at = this.freeSpot(zone);
     const maxHp = Math.round(stats.hp * size * size * (0.9 + Math.random() * 0.2));
     const e: Enemy = {
-      kind, stats, group, body: built.body, flashMats: built.flash, parts: built.parts,
+      kind, stats, group, body, flashMats: mats, mixer, actions, clip: '', prev: 'wander',
       x: at.x, z: at.z, yaw: Math.random() * Math.PI * 2, kx: 0, kz: 0,
       hp: maxHp, maxHp, size, state: 'wander', t: Math.random() * 2, cool: 0, flash: 0,
       home: { ...at }, wander: null, dir: { x: 0, z: 1 }, hitHero: false, respawn: 0, zone,
@@ -316,10 +208,9 @@ export class Enemies {
     for (const e of this.list) {
       if (e.state === 'dead') {
         e.t += dt;
-        const k = Math.min(1, e.t / 0.35);
-        e.group.scale.set(1 + k * 0.6, Math.max(0.001, 1 - k), 1 + k * 0.6);
+        if (e.group.visible) this.animate(e, dt, t);
         e.bar.visible = false;
-        if (e.t > 0.35) e.group.visible = false;
+        if (e.t > DEATH_HIDE) e.group.visible = false;
         e.respawn -= dt;
         if (e.respawn <= 0) this.revive(e, hero);
         continue;
@@ -437,75 +328,100 @@ export class Enemies {
     }
   }
 
+  private play(e: Enemy, name: string, fade = 0.15, opts: { once?: boolean; speed?: number; restart?: boolean } = {}) {
+    const next = e.actions[name] ?? e.actions.Idle;
+    if (!next) return;
+    next.timeScale = opts.speed ?? 1;
+    if (e.clip === name && !opts.restart) return;
+    const cur = e.actions[e.clip];
+    next.reset();
+    next.setLoop(opts.once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+    next.clampWhenFinished = !!opts.once;
+    next.play();
+    if (cur && cur !== next) cur.crossFadeTo(next, fade, false);
+    else next.fadeIn(fade);
+    e.clip = name;
+  }
+
+  private fit(e: Enemy, name: string, dur: number) {
+    const a = e.actions[name];
+    return a ? a.getClip().duration / dur : 1;
+  }
+
+  private pick(e: Enemy) {
+    const s = e.stats, k = e.kind;
+    const moving = e.state === 'chase' || e.state === 'home' || (e.state === 'wander' && !!e.wander);
+    const fresh = e.state !== e.prev;
+    e.prev = e.state;
+    switch (e.state) {
+      case 'dead': if (fresh) this.play(e, 'Death', 0.1, { once: true, restart: true }); return;
+      case 'stagger': if (fresh) this.play(e, k === 'jelly' ? 'HitRecieve' : 'HitReact', 0.06, { once: true, restart: true, speed: this.fit(e, k === 'jelly' ? 'HitRecieve' : 'HitReact', e.t < 0 ? 0.9 : 0.3) }); return;
+      case 'windup':
+        if (k === 'jelly') this.play(e, 'Idle', 0.1, { speed: 3 });
+        else if (k === 'beetle') this.play(e, 'Duck', 0.12, { once: true, speed: 1.67 / s.windup * 0.5 });
+        else this.play(e, 'Jump', 0.12, { once: true, speed: 0.37 / s.windup });
+        return;
+      case 'attack':
+        if (k === 'jelly') this.play(e, 'Bite_Front', 0.05, { once: true, restart: fresh, speed: this.fit(e, 'Bite_Front', 0.4) });
+        else if (k === 'beetle') this.play(e, 'Run', 0.08, { speed: 1.8 });
+        else this.play(e, 'Jump_Land', 0.04, { once: true, restart: fresh });
+        return;
+      case 'recover': this.play(e, 'Idle', 0.2); return;
+    }
+    if (!moving) { this.play(e, 'Idle', 0.25); return; }
+    const fast = e.state === 'chase';
+    if (k === 'beetle' && fast) this.play(e, 'Run', 0.2, { speed: s.speed / 3.2 / e.size });
+    else this.play(e, 'Walk', 0.2, { speed: (fast ? s.speed : s.speed * 0.4) / WALK_PACE[k] / e.size });
+  }
+
   private animate(e: Enemy, dt: number, t: number) {
     const g = e.group;
     g.position.set(e.x, 0, e.z);
     g.rotation.y = e.yaw;
     const b = e.body;
+    const base = e.size;
     b.position.set(0, 0, 0);
     b.rotation.set(0, 0, 0);
-    const base = e.size;
     b.scale.setScalar(base);
-    if (e.kind === 'jelly') {
-      const blob = e.parts.blob;
-      if (e.state === 'windup') {
-        const k = Math.min(1, e.t / e.stats.windup);
-        b.scale.set(base * (1 + k * 0.25), base * (1 - k * 0.35), base * (1 + k * 0.25));
-        b.position.x = Math.sin(t * 40) * 0.03 * k;
-      } else if (e.state === 'attack') {
-        const k = Math.min(1, e.t / 0.4);
-        b.position.y = Math.sin(k * Math.PI) * 0.9;
-        b.scale.set(base * 0.9, base * 1.2, base * 0.9);
-      } else {
-        const hop = Math.abs(Math.sin(t * (e.state === 'chase' ? 7 : 3.5) + e.home.x));
-        b.position.y = hop * (e.state === 'chase' ? 0.22 : 0.08);
-        const sq = 1 - hop * 0.12;
-        b.scale.set(base * (2 - sq), base * sq, base * (2 - sq));
-      }
-      blob.rotation.y = Math.sin(t * 2) * 0.1;
-    } else if (e.kind === 'beetle') {
-      const walking = e.state === 'chase' || e.state === 'wander' || e.state === 'attack' || e.state === 'home';
-      const speed = e.state === 'attack' ? 30 : 14;
-      for (let i = 0; i < 6; i++) {
-        const leg = e.parts[`leg${i}`];
-        const side = i < 3 ? -1 : 1;
-        leg.rotation.x = walking ? Math.sin(t * speed + i * 2.1) * 0.6 : 0;
-        leg.rotation.z = side * 0.9;
-      }
-      if (e.state === 'windup') {
-        b.rotation.x = -0.15;
-        b.position.x = Math.sin(t * 50) * 0.04;
-        if (Math.random() < dt * 8) this.onStep(e.x - e.dir.x * 0.5, e.z - e.dir.z * 0.5);
-      } else if (e.state === 'stagger' && e.t < 0) {
-        b.rotation.z = Math.sin(t * 20) * 0.25;
-      }
-    } else {
-      const cap = e.parts.cap, armL = e.parts.armL, armR = e.parts.armR;
-      if (e.state === 'windup') {
-        const k = Math.min(1, e.t / e.stats.windup);
-        armL.rotation.x = armR.rotation.x = -k * 2.6;
-        cap.position.y = k * 0.1;
-        b.rotation.x = -k * 0.25;
-      } else if (e.state === 'attack') {
-        const k = Math.min(1, e.t / 0.35);
-        armL.rotation.x = armR.rotation.x = -2.6 + k * 3.4;
-        b.rotation.x = 0.25 * (1 - k);
-        b.scale.set(base * (1 + (1 - k) * 0.1), base * (1 - (1 - k) * 0.12), base * (1 + (1 - k) * 0.1));
-      } else {
-        const walk = e.state === 'chase' || e.state === 'home' || (e.state === 'wander' && e.wander);
-        const w = walk ? Math.sin(t * 6) : 0;
-        armL.rotation.x = w * 0.5;
-        armR.rotation.x = -w * 0.5;
-        b.rotation.z = w * 0.06;
-        b.position.y = Math.abs(w) * 0.05;
-        cap.position.y = Math.sin(t * 2) * 0.01;
-      }
-    }
-    if (e.state === 'stagger' && e.t >= 0) b.rotation.x -= 0.25;
+    this.pick(e);
+    e.mixer.update(dt);
     e.flash = Math.max(0, e.flash - dt * 6);
     for (const m of e.flashMats) {
       if (!m.userData.baseEmissive) m.userData.baseEmissive = m.emissive.clone();
-      m.emissive.copy(m.userData.baseEmissive as THREE.Color).lerp(new THREE.Color(2.5, 2.5, 2.5), e.flash);
+      m.emissive.copy(m.userData.baseEmissive as THREE.Color).lerp(FLASH, e.flash);
+    }
+    if (e.state === 'dead') {
+      b.position.y = -Math.max(0, e.t - DEATH_SINK) * 1.2 * base;
+      return;
+    }
+    if (e.kind === 'jelly') {
+      if (e.state === 'windup') {
+        const k = Math.min(1, e.t / e.stats.windup);
+        b.scale.set(base * (1 + k * 0.22), base * (1 - k * 0.3), base * (1 + k * 0.22));
+        b.position.x = Math.sin(t * 40) * 0.03 * k;
+      } else if (e.state === 'attack') {
+        const k = Math.min(1, e.t / 0.4);
+        b.position.y = Math.sin(k * Math.PI) * 0.8;
+      } else if (e.state === 'chase') {
+        b.position.y = Math.abs(Math.sin(t * 7 + e.home.x)) * 0.12;
+      }
+    } else if (e.kind === 'beetle') {
+      if (e.state === 'windup') {
+        b.position.x = Math.sin(t * 50) * 0.035;
+        if (Math.random() < dt * 8) this.onStep(e.x - e.dir.x * 0.5, e.z - e.dir.z * 0.5);
+      } else if (e.state === 'attack') {
+        b.rotation.x = 0.18;
+        if (Math.random() < dt * 14) this.onStep(e.x - e.dir.x * 0.4, e.z - e.dir.z * 0.4);
+      } else if (e.state === 'stagger' && e.t < 0) {
+        b.rotation.z = Math.sin(t * 20) * 0.2;
+      }
+    } else if (e.state === 'windup') {
+      const k = Math.min(1, e.t / e.stats.windup);
+      b.position.y = Math.pow(Math.max(0, (k - 0.35) / 0.65), 0.7) * 0.9 * base;
+      b.position.x = Math.sin(t * 30) * 0.02 * (1 - k);
+    } else if (e.state === 'attack') {
+      const k = Math.min(1, e.t / 0.35);
+      b.scale.set(base * (1 + (1 - k) * 0.08), base * (1 - (1 - k) * 0.1), base * (1 + (1 - k) * 0.08));
     }
   }
 
@@ -534,7 +450,9 @@ export class Enemies {
     e.t = 0;
     e.kx = e.kz = 0;
     e.group.visible = true;
-    e.group.scale.set(1, 1, 1);
+    e.prev = 'dead';
+    e.clip = '';
+    e.mixer.stopAllAction();
   }
 
   pushFrom(x: number, z: number, r: number) {
