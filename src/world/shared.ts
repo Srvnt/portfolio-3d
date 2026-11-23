@@ -40,28 +40,6 @@ export function wobble(geo: THREE.BufferGeometry, amount: number, seed = 0): THR
   return geo;
 }
 
-export function addWind(material: THREE.Material, amp: number, minY: number) {
-  material.customProgramCacheKey = () => `wind-${amp}-${minY}`;
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = uniforms.uTime;
-    shader.uniforms.uWind = uniforms.uWind;
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime; uniform float uWind;')
-      .replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-        #ifdef USE_INSTANCING
-          vec2 ip = instanceMatrix[3].xz;
-        #else
-          vec2 ip = vec2(0.0);
-        #endif
-        float hgt = max(position.y - ${minY.toFixed(2)}, 0.0);
-        transformed.x += (sin(uTime * (1.3 + uWind * 2.0) + ip.x * 0.5 + ip.y * 0.3) + uWind * 1.2) * ${amp.toFixed(3)} * (1.0 + uWind * 2.5) * hgt;
-        transformed.z += cos(uTime * (1.1 + uWind * 2.0) + ip.x * 0.3) * ${(amp * 0.6).toFixed(3)} * (1.0 + uWind * 2.5) * hgt;`,
-      );
-  };
-}
-
 export function standard(opts: THREE.MeshStandardMaterialParameters = {}) {
   return new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0, flatShading: true, ...opts });
 }

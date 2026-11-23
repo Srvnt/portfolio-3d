@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Prop, WorldMap } from './map';
 import { hash2, rng } from '../core/random';
 import { heightAt } from './terrain';
-import { addWind, canvasTexture, makeCanvas, standard, tint, uniforms, wobble } from './shared';
+import { canvasTexture, makeCanvas, standard, tint, uniforms, wobble } from './shared';
 
 type Geo = THREE.BufferGeometry;
 const SUN = new THREE.Vector3(-0.45, 0.8, 0.4).normalize();
@@ -307,39 +307,6 @@ function rockGeometry(): Geo {
   return t;
 }
 
-function createFlowers(map: WorldMap): THREE.Group {
-  const pts: { x: number; z: number; c: number }[] = [];
-  for (let z = 0; z < map.H; z++)
-    for (let x = 0; x < map.W; x++) {
-      if (!map.flowers[map.i(x, z)]) continue;
-      const n = 3 + Math.floor(hash2(x, z, 30) * 4);
-      for (let k = 0; k < n; k++)
-        pts.push({ x: x + 0.1 + hash2(x, z, 31 + k) * 0.8, z: z + 0.1 + hash2(x, z, 41 + k) * 0.8, c: Math.floor(hash2(x, z, 51 + k) * 5) });
-    }
-  const colors = ['#ffe066', '#ff7aa8', '#ffffff', '#8fd0ff', '#ff9a4a'].map((c) => new THREE.Color(c));
-  const stemGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.22, 3);
-  stemGeo.translate(0, 0.11, 0);
-  const headGeo = new THREE.IcosahedronGeometry(0.055, 0);
-  headGeo.translate(0, 0.23, 0);
-  const stemMat = standard({ color: '#4f9a3a' });
-  const headMat = standard({ color: '#ffffff', emissive: '#222222' });
-  addWind(stemMat, 0.25, 0.0);
-  addWind(headMat, 0.25, 0.0);
-  const stems = new THREE.InstancedMesh(stemGeo, stemMat, pts.length);
-  const heads = new THREE.InstancedMesh(headGeo, headMat, pts.length);
-  const m = new THREE.Matrix4();
-  pts.forEach((p, i) => {
-    const s = 1.5 + hash2(i, 1, 1) * 0.7;
-    m.makeScale(s, s, s).setPosition(p.x, 0, p.z);
-    stems.setMatrixAt(i, m);
-    heads.setMatrixAt(i, m);
-    heads.setColorAt(i, colors[p.c]);
-  });
-  const g = new THREE.Group();
-  g.add(stems, heads);
-  return g;
-}
-
 const REGROW_AFTER = 25;
 const GROW_TIME = 0.9;
 const bushes = { mesh: null as THREE.InstancedMesh | null, list: [] as Prop[], base: [] as THREE.Matrix4[], cutAt: [] as number[], growAt: [] as number[] };
@@ -433,6 +400,5 @@ export function createNature(map: WorldMap, lowEnd = false): THREE.Group {
   trees = map.props.filter((p) => p.kind === 'tree' && p.inside);
 
   group.add(...placeAll([[rockGeometry(), standard({ vertexColors: true })]], map.props.filter((p) => p.kind === 'rock'), map, [0.7, 1.2]));
-  group.add(createFlowers(map));
   return group;
 }

@@ -5,6 +5,7 @@ import { createRenderer } from './render/setup';
 import { createTerrain } from './world/terrain';
 import { createWater } from './world/water';
 import { createGrass } from './world/grass';
+import { createFlowers } from './world/flowers';
 import { createNature, cutBushes, regrowBushes, treesNear } from './world/nature';
 import { createGroundDetails } from './world/decals';
 import { animateFlags, createBuilding } from './world/buildings';
@@ -44,7 +45,8 @@ async function init() {
 
   scene.add(createTerrain(map));
   scene.add(createWater(map));
-  scene.add(createGrass(map, lowEnd ? 24 : 50));
+  createGrass(map, lowEnd).then((g) => scene.add(g)).catch((err) => console.warn('grass failed', err));
+  createFlowers(map).then((g) => scene.add(g)).catch((err) => console.warn('flowers failed', err));
   scene.add(createNature(map, lowEnd));
   scene.add(createGroundDetails(map));
   scene.add(createFallingLeaves(map, lowEnd ? 120 : 240));

@@ -1,52 +1,151 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Occ, Tile, WorldMap } from './map';
 import { hash2, valueNoise } from '../core/random';
 import { uniforms } from './shared';
 
-const BLADE_H = 0.32;
+const base = `${import.meta.env.BASE_URL}models/nature/`;
+const FILES = ['Grass_Common_Short', 'Grass_Common_Tall', 'Grass_Wispy_Short', 'Grass_Wispy_Tall'] as const;
+const GREEN = { root: '#4c8c30', mid: '#7cbb48', tip: '#c2e27c' };
+const GOLD = { root: '#8c8a34', mid: '#c4b452', tip: '#ecdc8c' };
+const CHUNK = 12;
 
-export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh {
-  const w = 0.06;
-  const geo = new THREE.BufferGeometry();
-  const pos = [-w, 0, 0, w, 0, 0, -w * 0.65, BLADE_H * 0.55, 0.02, w * 0.65, BLADE_H * 0.55, 0.02, 0, BLADE_H, 0.07];
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setIndex([0, 1, 2, 1, 3, 2, 2, 3, 4]);
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(15).fill(0).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
-  const base = new THREE.Color('#2c6420');
-  const mid = new THREE.Color('#5aa636');
-  const tip = new THREE.Color('#c6ea78');
-  geo.setAttribute('color', new THREE.Float32BufferAttribute([
-    ...base.toArray(), ...base.toArray(), ...mid.toArray(), ...mid.toArray(), ...tip.toArray(),
-  ], 3));
+interface Clump {
+  geo: THREE.BufferGeometry;
+  height: number;
+}
 
-  const spots: number[] = [];
-  const nearNonGrass = (x: number, z: number, px: number, pz: number) => {
+interface Spot {
+  x: number;
+  z: number;
+  sx: number;
+  sy: number;
+  tint: number;
+}
+
+async function loadClump(loader: GLTFLoader, file: string, ramp: typeof GREEN): Promise<Clump> {
+  const gltf = await loader.loadAsync(`${base}${file}.gltf`);
+  let mesh: THREE.Mesh | undefined;
+  gltf.scene.traverse((o) => {
+    if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh;
+  });
+  if (!mesh) throw new Error(`no mesh in ${file}`);
+  const geo = mesh.geometry.clone();
+  geo.deleteAttribute('color');
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const n = pos.count;
+  geo.computeBoundingBox();
+  const knee = geo.boundingBox!.max.y * 0.62;
+  for (let i = 0; i < n; i++) {
+    const y = pos.getY(i);
+    if (y > knee) pos.setY(i, knee + (y - knee) * 0.4);
+  }
+  const up = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) up[i * 3 + 1] = 1;
+  geo.setAttribute('normal', new THREE.BufferAttribute(up, 3));
+  geo.computeBoundingBox();
+  const height = geo.boundingBox!.max.y;
+  const root = new THREE.Color(ramp.root), mid = new THREE.Color(ramp.mid), tip = new THREE.Color(ramp.tip);
+  const c = new THREE.Color();
+  const colors = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const t = Math.max(0, pos.getY(i) / height);
+    if (t < 0.5) c.copy(root).lerp(mid, t * 2);
+    else c.copy(mid).lerp(tip, (t - 0.5) * 2);
+    c.toArray(colors, i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.deleteAttribute('uv');
+  return { geo, height };
+}
+
+export async function createGrass(map: WorldMap, lowEnd: boolean): Promise<THREE.Group> {
+  const loader = new GLTFLoader();
+  const clumps = await Promise.all(FILES.map((f) => loadClump(loader, f, f.includes('Wispy') ? GOLD : GREEN)));
+
+  const nearEdge = (px: number, pz: number, pad: number) => {
+    const x = Math.floor(px), z = Math.floor(pz);
     for (let dz = -1; dz <= 1; dz++)
       for (let dx = -1; dx <= 1; dx++) {
         const t = map.tile(x + dx, z + dz);
-        if (t !== Tile.Grass && Math.hypot(px - (x + dx + 0.5), pz - (z + dz + 0.5)) < (t === Tile.Path ? 0.82 : 1.15)) return true;
+        if (t !== Tile.Grass && Math.hypot(px - (x + dx + 0.5), pz - (z + dz + 0.5)) < (t === Tile.Path ? 0.82 : 1.15) + pad) return true;
       }
     return false;
   };
-  const trunks = new Map<number, { x: number; z: number }>();
-  for (const p of map.props) if (p.inside && p.kind === 'tree') trunks.set(map.i(Math.floor(p.x), Math.floor(p.z)), p);
+  const trunks: { x: number; z: number }[] = [];
+  for (const p of map.props) if (p.kind === 'tree') trunks.push(p);
+  const nearTrunk = (px: number, pz: number, r: number) => trunks.some((t) => Math.abs(px - t.x) < r && Math.abs(pz - t.z) < r && Math.hypot(px - t.x, pz - t.z) < r);
+  const nearThing = (px: number, pz: number) => map.interactables.some((it) => Math.hypot(px - it.x, pz - it.z) < 1.3);
+
+  const cx = Math.ceil(map.W / CHUNK);
+  const buckets: Spot[][][] = FILES.map(() => Array.from({ length: cx * Math.ceil(map.H / CHUNK) }, () => []));
+  const put = (v: number, s: Spot) => buckets[v][Math.floor(s.z / CHUNK) * cx + Math.floor(s.x / CHUNK)].push(s);
+
+  const carpet = lowEnd ? 7 : 14;
   for (let z = 0; z < map.H; z++)
     for (let x = 0; x < map.W; x++) {
       const i = map.i(x, z);
       if (map.tiles[i] !== Tile.Grass || map.occ[i] === Occ.Building || map.occ[i] === Occ.Fixture) continue;
-      if (x >= 18 && x <= 25 && z >= 14 && z <= 21) continue;
-      const trunk = trunks.get(i);
-      for (let k = 0; k < density; k++) {
+      const plaza = x >= 18 && x <= 25 && z >= 14 && z <= 21;
+      if (plaza) continue;
+      const nearPlaza = x >= 17 && x <= 26 && z >= 13 && z <= 22;
+      for (let k = 0; k < carpet; k++) {
         const px = x + hash2(x * 31 + k, z, 1);
         const pz = z + hash2(x, z * 31 + k, 2);
-        if (nearNonGrass(x, z, px, pz)) continue;
-        if (trunk && Math.hypot(px - trunk.x, pz - trunk.z) < 0.55) continue;
-        spots.push(px, pz);
+        if (nearEdge(px, pz, 0) || nearTrunk(px, pz, 0.5)) continue;
+        const clump = valueNoise(px * 0.55, pz * 0.55, 13);
+        const patch = valueNoise(px * 0.18, pz * 0.18, 31);
+        const dry = valueNoise(px * 0.12 + 50, pz * 0.12, 32) > 0.68;
+        const h = hash2(x * 7 + k, z * 3, 4);
+        const tall = !nearPlaza && patch > 0.58 + hash2(x + k, z, 23) * 0.12 && k < (lowEnd ? 2 : 3)
+          && !nearEdge(px, pz, 0.15) && !nearTrunk(px, pz, 0.65) && !nearThing(px, pz);
+        if (tall) {
+          const sc = 0.3 + h * 0.12 + (patch - 0.58) * 0.25;
+          put(dry ? 3 : 1, { x: px, z: pz, sx: sc * (1.15 + clump * 0.3), sy: sc, tint: clump });
+        } else {
+          const sy = (0.22 + h * 0.08) * (0.8 + clump * 0.45);
+          put(dry && h > 0.4 ? 2 : 0, { x: px, z: pz, sx: 0.6 + hash2(k, x * 13 + z, 8) * 0.18, sy, tint: clump });
+        }
       }
     }
 
-  const count = spots.length / 2;
-  const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  const group = new THREE.Group();
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const s = new THREE.Vector3();
+  const p = new THREE.Vector3();
+  const col = new THREE.Color();
+  clumps.forEach((c, vi) => {
+    const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    addSway(material, c.height);
+    for (const list of buckets[vi]) {
+      if (!list.length) continue;
+      const mesh = new THREE.InstancedMesh(c.geo, material, list.length);
+      list.forEach((g, i) => {
+        const h = hash2(Math.floor(g.x * 97), Math.floor(g.z * 97), 5);
+        e.set((h - 0.5) * 0.2, h * Math.PI * 2, (hash2(i, vi, 9) - 0.5) * 0.2);
+        q.setFromEuler(e);
+        s.set(g.sx, g.sy, g.sx);
+        p.set(g.x, 0, g.z);
+        m.compose(p, q, s);
+        mesh.setMatrixAt(i, m);
+        const v = hash2(i, vi, 1);
+        const sun = valueNoise(g.x * 0.3 + 40, g.z * 0.3, 14);
+        const deep = g.tint * 0.12;
+        col.setRGB(0.86 + v * 0.14 + sun * 0.14 - deep, 0.94 + v * 0.1 + sun * 0.05 - deep * 0.4, 0.82 + v * 0.1 - deep);
+        mesh.setColorAt(i, col);
+      });
+      mesh.computeBoundingSphere();
+      mesh.boundingSphere!.radius += 1;
+      group.add(mesh);
+    }
+  });
+  return group;
+}
+
+export function addSway(material: THREE.Material, height: number) {
+  material.customProgramCacheKey = () => `sway-${height.toFixed(3)}`;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uniforms.uTime;
     shader.uniforms.uHero = uniforms.uHero;
@@ -58,7 +157,7 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
         '#include <project_vertex>',
         `vec4 mvPosition = vec4(transformed, 1.0);
         mvPosition = instanceMatrix * mvPosition;
-        float hk = position.y / ${BLADE_H.toFixed(2)}; hk *= hk;
+        float hk = position.y / ${height.toFixed(3)}; hk *= hk;
         vec2 ip = instanceMatrix[3].xz;
         float gustW = 0.5 + 0.5 * sin(uTime * (0.9 + uWind) - ip.x * 0.25 - ip.y * 0.1);
         vec2 wind = vec2(
@@ -75,42 +174,7 @@ export function createGrass(map: WorldMap, density: number): THREE.InstancedMesh
         mvPosition = modelViewMatrix * mvPosition;
         gl_Position = projectionMatrix * mvPosition;`,
       );
-    shader.fragmentShader = shader.fragmentShader.replace(
-      'float faceDirection = gl_FrontFacing ? 1.0 : - 1.0;',
-      'float faceDirection = 1.0;',
-    );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('float faceDirection = gl_FrontFacing ? 1.0 : - 1.0;', 'float faceDirection = 1.0;');
   };
-
-  const mesh = new THREE.InstancedMesh(geo, material, count);
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const s = new THREE.Vector3();
-  const p = new THREE.Vector3();
-  const e = new THREE.Euler();
-  const col = new THREE.Color();
-  for (let i = 0; i < count; i++) {
-    const x = spots[i * 2], z = spots[i * 2 + 1];
-    const h = hash2(Math.floor(x * 97), Math.floor(z * 97), 5);
-    e.set((h - 0.5) * 0.3, h * Math.PI * 2, (hash2(i, 3, 9) - 0.5) * 0.3);
-    q.setFromEuler(e);
-    const clump = valueNoise(x * 0.55, z * 0.55, 13);
-    const sc = (0.6 + hash2(i, 7, 4) * 0.55) * (0.7 + clump * 1.0);
-    const wide = 0.85 + hash2(i, 8, 4) * 0.5;
-    s.set(wide, sc, wide);
-    p.set(x, 0, z);
-    m.compose(p, q, s);
-    mesh.setMatrixAt(i, m);
-    const v = hash2(i, 1, 1);
-    const sun = valueNoise(x * 0.3 + 40, z * 0.3, 14);
-    const deep = clump * 0.25;
-    col.setRGB(
-      0.78 + v * 0.22 + sun * 0.18 - deep,
-      0.9 + v * 0.15 + sun * 0.06 - deep * 0.4,
-      0.72 + v * 0.12 - deep,
-    );
-    mesh.setColorAt(i, col);
-  }
-  mesh.receiveShadow = true;
-  mesh.frustumCulled = false;
-  return mesh;
 }
