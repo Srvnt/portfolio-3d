@@ -18,7 +18,8 @@ import { Minimap } from './ui/minimap';
 import { Npc } from './world/npc';
 import { addWeatherCover, WeatherFX } from './fx/weather';
 import { WeatherUI } from './ui/weather-ui';
-import { Butterflies, createFallingLeaves, createMotes, Puffs, Ripples, Swoosh } from './fx/particles';
+import { createFallingLeaves, createMotes, Puffs, Ripples, Swoosh } from './fx/particles';
+import { Butterflies } from './fx/butterflies';
 import { uniforms } from './world/shared';
 import { Physics } from './physics';
 import { Hero } from './hero';
@@ -80,7 +81,7 @@ async function init() {
 
   const smoke = new Puffs(40, '#f4f1ec', 0.55);
   const dust = new Puffs(30, '#d8c49a', 0.6);
-  const butterflies = new Butterflies(map, lowEnd ? 6 : 12);
+  const butterflies = new Butterflies(map, lowEnd ? 8 : 16);
   scene.add(createMotes(map, lowEnd ? 140 : 260), smoke.group, dust.group, butterflies.group);
 
   const [heroAssets, monsterAssets] = await Promise.all([loadHeroAssets(), loadMonsterAssets()]);
@@ -366,7 +367,7 @@ async function init() {
     uniforms.uHero.value.set(hero.x, hero.z);
     for (const c of chests.values()) c.update(dt, t);
     animateFlags(town, t);
-    butterflies.update(t);
+    butterflies.update(t, hero.x, hero.z);
 
     smokeT += dt;
     if (smokeT > 0.3) {

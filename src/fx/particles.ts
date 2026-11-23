@@ -143,51 +143,6 @@ export class Puffs {
   }
 }
 
-export class Butterflies {
-  group = new THREE.Group();
-  private flies: { g: THREE.Group; wings: THREE.Group[]; home: THREE.Vector3; seed: number }[] = [];
-
-  constructor(map: WorldMap, count = 10) {
-    const homes: THREE.Vector3[] = [];
-    for (let z = 0; z < map.H; z++)
-      for (let x = 0; x < map.W; x++) if (map.flowers[map.i(x, z)]) homes.push(new THREE.Vector3(x + 0.5, 0, z + 0.5));
-    const colors = ['#ffd84a', '#ff8ac0', '#8fd0ff', '#ffffff', '#ffa040'];
-    const wingGeo = new THREE.CircleGeometry(0.11, 6);
-    wingGeo.translate(0.1, 0, 0);
-    for (let i = 0; i < count && homes.length; i++) {
-      const g = new THREE.Group();
-      const mat = new THREE.MeshStandardMaterial({ color: colors[i % colors.length], side: THREE.DoubleSide, emissive: colors[i % colors.length], emissiveIntensity: 0.25 });
-      const wings = [-1, 1].map((s) => {
-        const hinge = new THREE.Group();
-        const w = new THREE.Mesh(wingGeo, mat);
-        w.rotation.x = -Math.PI / 2;
-        hinge.scale.x = s;
-        hinge.add(w);
-        g.add(hinge);
-        return hinge;
-      });
-      const home = homes[Math.floor(Math.random() * homes.length)];
-      this.group.add(g);
-      this.flies.push({ g, wings, home, seed: Math.random() * 100 });
-    }
-  }
-
-  update(t: number) {
-    for (const f of this.flies) {
-      const s = f.seed;
-      const x = f.home.x + Math.sin(t * 0.5 + s) * 1.6 + Math.sin(t * 1.3 + s * 2) * 0.4;
-      const z = f.home.z + Math.cos(t * 0.4 + s) * 1.6;
-      const y = 0.6 + Math.sin(t * 1.7 + s) * 0.3;
-      const prev = f.g.position.clone();
-      f.g.position.set(x, y, z);
-      f.g.rotation.y = Math.atan2(x - prev.x, z - prev.z);
-      const flap = Math.sin(t * 22 + s) * 1.1;
-      f.wings[0].rotation.z = flap;
-      f.wings[1].rotation.z = flap;
-    }
-  }
-}
-
 export class Ripples {
   group = new THREE.Group();
   private pool: { m: THREE.Mesh; life: number; max: number; size: number }[] = [];
