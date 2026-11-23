@@ -51,6 +51,12 @@ function shade(sp: Species, n: THREE.Vector3, h: number, depth: number, jitter: 
   return out;
 }
 
+export function leafShade(species: number, n: THREE.Vector3, h: number, depth: number, jitter: number, out: THREE.Color) {
+  return shade(SPECIES[species], n, h, depth, jitter, out);
+}
+
+export const treeSpecies = (p: Prop) => (p.v === 3 && hash2(Math.floor(p.x * 3), Math.floor(p.z * 3), 12) < 0.55 ? 0 : p.v);
+
 function crownCenter(blobs: Blob[]) {
   const c = new THREE.Vector3();
   let w = 0;
@@ -367,20 +373,21 @@ export function createNature(map: WorldMap, lowEnd = false): THREE.Group {
   const leafMat = foliageMaterial({ map: leafTex, amp: 0.05, minY: 1.0, flutter: 0.035, twoSided: true });
   const needleMat = foliageMaterial({ map: needleTex, amp: 0.035, minY: 0.8, flutter: 0.015, twoSided: true });
 
-  const species = (p: Prop) => (p.v === 3 && hash2(Math.floor(p.x * 3), Math.floor(p.z * 3), 12) < 0.55 ? 0 : p.v);
   for (let v = 0; v < 4; v++) {
     const sp = SPECIES[v];
     const pine = v === 2;
     for (const near of [true, false]) {
-      const list = map.props.filter((p) => p.kind === 'tree' && p.inside === near && species(p) === v);
+      const list = map.props.filter((p) => p.kind === 'tree' && p.inside === near && treeSpecies(p) === v);
       if (!list.length) continue;
       const density = near ? (lowEnd ? 0.55 : 1) : (lowEnd ? 0.3 : 0.45);
       const count = Math.round(sp.cards * density);
       const leaves = pine ? pineCards(sp, count, v * 13 + 5) : crownCards(sp, count, v * 13 + 5);
-      group.add(...placeAll([
+      const meshes = placeAll([
         [trunkGeometry(sp, pine), woodMat],
         [leaves, pine ? needleMat : leafMat],
-      ], list, map, [0.85, 1.25]));
+      ], list, map, [0.85, 1.25]);
+      for (const mesh of meshes) mesh.userData.insideTree = near;
+      group.add(...meshes);
     }
   }
 
