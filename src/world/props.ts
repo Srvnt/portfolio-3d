@@ -1,12 +1,8 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
-import fontJson from 'three/examples/fonts/gentilis_bold.typeface.json';
-import { BUILDINGS, FOUNTAIN, GATE, Tile, WorldMap } from './map';
+import { BUILDINGS, FOUNTAIN, GATE, SectionId, SIGNPOST, Tile, WorldMap } from './map';
 import { Physics } from '../physics';
 import { canvasTexture, makeCanvas, standard, uniforms } from './shared';
-import { roofGeometry, shingleTexture } from './buildings';
 import { leafTexture } from './nature';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -66,14 +62,17 @@ export function createPushables(map: WorldMap, physics: Physics): THREE.Group {
   return group;
 }
 
-export function createGate(text: string, physics: Physics) {
+export function createGate(physics: Physics) {
   const g = new THREE.Group();
   const { x: cx, z: cz, span } = GATE;
+  const half = span / 2;
+  const POST_H = 2.15;
+  const RISE = half * 0.8;
+  const DEPTH = 0.36;
+  const wood = standard({ color: '#8a5a34', flatShading: false, roughness: 0.8 });
+  const woodDark = standard({ color: '#5e3a20', flatShading: false });
   const stone = standard({ color: '#b5ad9c' });
-  const timber = standard({ color: '#7a4c2a', flatShading: false, roughness: 0.75 });
-  const timberDark = standard({ color: '#563219', flatShading: false });
   const iron = new THREE.MeshStandardMaterial({ color: '#2e2a30', metalness: 0.5, roughness: 0.45 });
-  const gold = new THREE.MeshStandardMaterial({ color: '#ffd36a', metalness: 0.45, roughness: 0.28, emissive: '#8a5600', emissiveIntensity: 0.45 });
   const glow = new THREE.MeshStandardMaterial({ color: '#fff0c0', emissive: '#ffb84a', emissiveIntensity: 0.2, roughness: 0.3 });
   const add = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D = g) => {
     const mesh = new THREE.Mesh(geo, m);
@@ -81,144 +80,240 @@ export function createGate(text: string, physics: Physics) {
     parent.add(mesh);
     return mesh;
   };
-  const POST_TOP = 3.6;
-  const BEAM_Y = 3.45;
 
-  for (const side of [-1, 1]) {
-    const x = side * span / 2;
-    add(new THREE.BoxGeometry(0.78, 0.5, 0.78), stone, x, 0.25, 0);
-    add(new THREE.BoxGeometry(0.62, 0.1, 0.62), stone, x, 0.55, 0);
-    add(new THREE.BoxGeometry(0.36, POST_TOP - 0.5, 0.36), timber, x, 0.5 + (POST_TOP - 0.5) / 2, 0);
-    for (const y of [0.85, POST_TOP - 0.45]) add(new THREE.BoxGeometry(0.4, 0.07, 0.4), iron, x, y, 0);
-    const brace = add(new THREE.BoxGeometry(0.12, 0.85, 0.16), timberDark, x - side * 0.34, BEAM_Y - 0.42, 0);
-    brace.rotation.z = side * 0.75;
-    physics.cylinder(cx + x, cz, 0.42, 1.6);
+  const arch = (z: number) => {
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= 6; i++) pts.push(new THREE.Vector3(-half, (POST_H * i) / 6, z));
+    for (let i = 1; i < 24; i++) {
+      const a = Math.PI - (Math.PI * i) / 24;
+      pts.push(new THREE.Vector3(Math.cos(a) * half, POST_H + Math.sin(a) * RISE, z));
+    }
+    for (let i = 6; i >= 0; i--) pts.push(new THREE.Vector3(half, (POST_H * i) / 6, z));
+    return new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+  };
+  const arcs = [arch(DEPTH), arch(-DEPTH)];
+  for (const c of arcs) add(new THREE.TubeGeometry(c, 120, 0.075, 8), wood, 0, 0, 0);
+  for (let i = 0; i <= 26; i++) {
+    const p = arcs[0].getPointAt(i / 26);
+    if (p.y < 0.35) continue;
+    add(new THREE.BoxGeometry(0.07, 0.07, DEPTH * 2 + 0.16), woodDark, p.x, p.y, 0);
   }
-  add(new THREE.BoxGeometry(span + 1.3, 0.3, 0.42), timber, 0, BEAM_Y, 0);
   for (const side of [-1, 1]) {
-    const end = add(new THREE.CylinderGeometry(0.2, 0.2, 0.42, 12, 1, false, 0, Math.PI), timber, side * (span / 2 + 0.65), BEAM_Y, 0);
-    end.rotation.set(Math.PI / 2, 0, side > 0 ? -Math.PI / 2 : Math.PI / 2);
-  }
-
-  const roof = new THREE.Mesh(roofGeometry(span + 0.7, 0.6, POST_TOP + 0.02, 0.7, 0.3), [
-    new THREE.MeshStandardMaterial({ map: shingleTexture('#c4573a'), roughness: 0.8, flatShading: true }),
-    timberDark,
-  ]);
-  g.add(roof);
-  const ridge = add(new THREE.CylinderGeometry(0.08, 0.08, span + 1.4, 8), standard({ color: '#8a3424' }), 0, POST_TOP + 0.74, 0);
-  ridge.rotation.z = Math.PI / 2;
-  for (const side of [-1, 1]) add(new THREE.SphereGeometry(0.11, 12, 8), gold, side * (span / 2 + 0.7), POST_TOP + 0.76, 0);
-
-  const sign = new THREE.Group();
-  sign.position.set(0, POST_TOP + 0.98, 0.78);
-  sign.rotation.x = -0.72;
-  g.add(sign);
-  const boardW = span - 0.55, boardH = 0.92;
-  const shape = new THREE.Shape();
-  const r = 0.16;
-  shape.moveTo(-boardW / 2 + r, -boardH);
-  shape.lineTo(boardW / 2 - r, -boardH);
-  shape.quadraticCurveTo(boardW / 2, -boardH, boardW / 2, -boardH + r);
-  shape.lineTo(boardW / 2, -r);
-  shape.quadraticCurveTo(boardW / 2, 0, boardW / 2 - r, 0);
-  shape.lineTo(-boardW / 2 + r, 0);
-  shape.quadraticCurveTo(-boardW / 2, 0, -boardW / 2, -r);
-  shape.lineTo(-boardW / 2, -boardH + r);
-  shape.quadraticCurveTo(-boardW / 2, -boardH, -boardW / 2 + r, -boardH);
-  const boardGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.04, bevelSegments: 3 });
-  boardGeo.translate(0, 0, -0.04);
-  const boardMat = standard({ color: '#2b44a0', flatShading: false, roughness: 0.5, emissive: '#1a2c7a', emissiveIntensity: 0.25 });
-  add(boardGeo, boardMat, 0, 0, 0, sign);
-  const frame = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(shape.getPoints(10).map((p) => new THREE.Vector3(p.x * 0.95, (p.y + boardH / 2) * 0.88 - boardH / 2, 0))), 64, 0.022, 5, true);
-  add(frame, gold, 0, 0, 0.075, sign);
-  const font = new FontLoader().parse(fontJson as never);
-  const textGeo = new TextGeometry(text, { font, size: 0.4, depth: 0.04, curveSegments: 8, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2 });
-  textGeo.computeBoundingBox();
-  const bb = textGeo.boundingBox!;
-  const tw = bb.max.x - bb.min.x, th = bb.max.y - bb.min.y;
-  const fit = Math.min(1, (boardW - 0.6) / tw);
-  textGeo.translate(-(bb.min.x + tw / 2), -(bb.min.y + th / 2), 0);
-  textGeo.scale(fit, fit, 1);
-  add(textGeo, gold, 0, -boardH / 2, 0.07, sign);
-  for (const side of [-1, 1]) {
-    const star = add(new THREE.OctahedronGeometry(0.07, 0), gold, side * (boardW / 2 - 0.22), -boardH / 2, 0.08, sign);
-    star.scale.z = 0.4;
-  }
-  for (const side of [-1, 1]) add(new THREE.BoxGeometry(0.06, 0.06, 0.5), iron, side * (boardW / 2 - 0.35), -boardH + 0.05, -0.25, sign);
-
-  for (const side of [-1, 1]) {
-    const lx = side * (span / 2 + 0.55);
-    add(new THREE.CylinderGeometry(0.012, 0.012, 0.32, 4), iron, lx, BEAM_Y - 0.3, 0.05);
-    add(new THREE.ConeGeometry(0.16, 0.12, 6), iron, lx, BEAM_Y - 0.48, 0.05);
-    add(new THREE.CylinderGeometry(0.11, 0.09, 0.26, 6), glow, lx, BEAM_Y - 0.66, 0.05);
-    add(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 6), iron, lx, BEAM_Y - 0.8, 0.05);
-  }
-
-  const pennant = new THREE.Shape();
-  pennant.moveTo(-0.17, 0);
-  pennant.lineTo(0.17, 0);
-  pennant.lineTo(0.17, -1.15);
-  pennant.lineTo(0, -0.95);
-  pennant.lineTo(-0.17, -1.15);
-  pennant.closePath();
-  const pennantGeo = new THREE.ShapeGeometry(pennant);
-  const banners: THREE.Object3D[] = [];
-  for (const side of [-1, 1]) {
-    const b = new THREE.Group();
-    b.position.set(side * span / 2, BEAM_Y - 0.5, 0.2);
-    add(pennantGeo, new THREE.MeshStandardMaterial({ color: side < 0 ? '#3d66c4' : '#c4473a', side: THREE.DoubleSide, roughness: 0.85 }), 0, 0, 0, b);
-    add(new THREE.CircleGeometry(0.09, 16), gold, 0, -0.42, 0.005, b);
-    add(new THREE.BoxGeometry(0.42, 0.04, 0.04), iron, 0, 0.01, 0, b);
-    g.add(b);
-    banners.push(b);
+    add(new THREE.BoxGeometry(0.42, 0.24, DEPTH * 2 + 0.42), stone, side * half, 0.12, 0);
+    for (const k of [0.75, 1.45])
+      for (const dir of [-1, 1]) {
+        const bar = add(new THREE.BoxGeometry(0.035, 0.95, 0.035), woodDark, side * half, k, 0);
+        bar.rotation.x = dir * 0.62;
+      }
+    physics.cylinder(cx + side * half, cz, 0.3, 1.6);
   }
 
   const leafMat = new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8, vertexColors: true });
   const leaves: THREE.BufferGeometry[] = [];
-  const dark = new THREE.Color('#1f5226'), light = new THREE.Color('#7cbc4c'), c = new THREE.Color();
-  for (const side of [-1, 1])
-    for (let i = 0; i < 46; i++) {
-      const k = i / 46;
-      const y = 0.55 + Math.pow(k, 1.4) * 2.6;
-      const a = k * 9 + side + Math.random() * 0.8;
-      const pos = new THREE.Vector3(side * span / 2 + Math.cos(a) * 0.24, y, Math.sin(a) * 0.24);
-      const out = new THREE.Vector3(Math.cos(a), 0.4, Math.sin(a)).normalize();
-      const leaf = new THREE.PlaneGeometry(0.34 - k * 0.12, 0.34 - k * 0.12);
-      leaf.applyMatrix4(new THREE.Matrix4().lookAt(out, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)).multiply(new THREE.Matrix4().makeRotationZ(Math.random() * 6.28)).setPosition(pos));
-      c.copy(dark).lerp(light, 0.3 + Math.random() * 0.6);
-      const n = new Float32Array(12), col = new Float32Array(12);
-      for (let v = 0; v < 4; v++) { n.set([out.x, out.y, out.z], v * 3); col.set([c.r, c.g, c.b], v * 3); }
-      leaf.setAttribute('normal', new THREE.BufferAttribute(n, 3));
-      leaf.setAttribute('color', new THREE.BufferAttribute(col, 3));
-      leaves.push(leaf);
+  const dark = new THREE.Color('#2c6a2c'), light = new THREE.Color('#8cc85a'), c = new THREE.Color();
+  const leafAt = (pos: THREE.Vector3, out: THREE.Vector3, size: number) => {
+    const leaf = new THREE.PlaneGeometry(size, size);
+    leaf.applyMatrix4(new THREE.Matrix4().lookAt(out, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)).multiply(new THREE.Matrix4().makeRotationZ(Math.random() * 6.28)).setPosition(pos));
+    c.copy(dark).lerp(light, 0.25 + Math.random() * 0.65);
+    const n = new Float32Array(12), col = new Float32Array(12);
+    for (let v = 0; v < 4; v++) { n.set([out.x, out.y, out.z], v * 3); col.set([c.r, c.g, c.b], v * 3); }
+    leaf.setAttribute('normal', new THREE.BufferAttribute(n, 3));
+    leaf.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    leaves.push(leaf);
+  };
+  const flowerSpots: { pos: THREE.Vector3; out: THREE.Vector3 }[] = [];
+  arcs.forEach((curve, ci) => {
+    const facing = ci === 0 ? 1 : -1;
+    for (let i = 0; i < 90; i++) {
+      const t = 0.06 + (i / 90) * 0.88 + (Math.random() - 0.5) * 0.01;
+      const p = curve.getPointAt(t);
+      const a = i * 2.3 + Math.random();
+      const out = new THREE.Vector3(Math.cos(a) * 0.6, 0.5 + Math.random() * 0.4, facing * (0.4 + Math.random() * 0.6)).normalize();
+      const pos = p.clone().add(new THREE.Vector3(Math.cos(a) * 0.1, Math.sin(a) * 0.1, facing * 0.05));
+      leafAt(pos, out, 0.22 + Math.random() * 0.14);
+      if (Math.random() < 0.32 && p.y > 0.9) flowerSpots.push({ pos: pos.clone().addScaledVector(out, 0.05), out });
     }
-  g.add(new THREE.Mesh(mergeGeometries(leaves)!, leafMat));
+  });
+  for (let i = 0; i < 34; i++) {
+    const t = 0.32 + Math.random() * 0.36;
+    const p = arcs[Math.random() < 0.5 ? 0 : 1].getPointAt(t);
+    const drop = 0.1 + Math.pow(Math.random(), 1.6) * 0.55;
+    leafAt(new THREE.Vector3(p.x + (Math.random() - 0.5) * 0.2, p.y - drop, p.z * (0.6 + Math.random() * 0.5)), new THREE.Vector3((Math.random() - 0.5) * 0.4, 0.2, Math.sign(p.z)).normalize(), 0.18 + Math.random() * 0.1);
+  }
+  const vine = new THREE.Mesh(mergeGeometries(leaves)!, leafMat);
+  vine.userData.noSnow = true;
+  g.add(vine);
+
+  const atlas = flowerAtlas();
+  const flowerMat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.7, emissive: '#ffffff', emissiveMap: atlas, emissiveIntensity: 0.15 });
+  const blooms: THREE.BufferGeometry[] = [];
+  const up = new THREE.Vector3(0, 1, 0);
+  flowerSpots.forEach((f, i) => {
+    const cell = i % 4;
+    const s = 0.15 + Math.random() * 0.08;
+    const bloom = new THREE.PlaneGeometry(s, s);
+    const uv = bloom.attributes.uv as THREE.BufferAttribute;
+    for (let v = 0; v < uv.count; v++) uv.setX(v, (cell + uv.getX(v)) / 4);
+    bloom.applyMatrix4(new THREE.Matrix4().lookAt(f.out, new THREE.Vector3(), up).multiply(new THREE.Matrix4().makeRotationZ(Math.random() * 6.28)).setPosition(f.pos));
+    blooms.push(bloom);
+  });
+  if (blooms.length) {
+    const flowers = new THREE.Mesh(mergeGeometries(blooms)!, flowerMat);
+    flowers.userData.noSnow = true;
+    g.add(flowers);
+  }
+
+  const lantern = new THREE.Group();
+  lantern.position.set(0, POST_H + RISE - 0.05, 0);
+  add(new THREE.CylinderGeometry(0.01, 0.01, 0.34, 4), iron, 0, -0.17, 0, lantern);
+  add(new THREE.ConeGeometry(0.14, 0.1, 6), iron, 0, -0.38, 0, lantern);
+  add(new THREE.CylinderGeometry(0.095, 0.08, 0.22, 6), glow, 0, -0.54, 0, lantern);
+  add(new THREE.CylinderGeometry(0.1, 0.1, 0.035, 6), iron, 0, -0.66, 0, lantern);
+  g.add(lantern);
 
   const flowerCols = ['#ff7aa8', '#ffe066', '#ffffff', '#b99cff'];
   for (const side of [-1, 1]) {
-    const fx = side * span / 2;
-    add(new THREE.BoxGeometry(0.7, 0.22, 0.26), timberDark, fx, 0.11, 0.55);
+    const fx = side * (half + 0.55);
+    add(new THREE.BoxGeometry(0.5, 0.22, 0.8), woodDark, fx, 0.11, 0);
     for (let k = 0; k < 9; k++) {
-      const f = add(new THREE.IcosahedronGeometry(0.06 + Math.random() * 0.03, 1), standard({ color: flowerCols[k % 4], flatShading: false }), fx + (Math.random() - 0.5) * 0.6, 0.28 + Math.random() * 0.08, 0.55 + (Math.random() - 0.5) * 0.16);
+      const f = add(new THREE.IcosahedronGeometry(0.06 + Math.random() * 0.03, 1), standard({ color: flowerCols[k % 4], flatShading: false }), fx + (Math.random() - 0.5) * 0.36, 0.28 + Math.random() * 0.08, (Math.random() - 0.5) * 0.66);
       f.scale.y = 0.8;
     }
   }
 
-  g.traverse((o) => { o.castShadow = true; o.receiveShadow = true; });
-  sign.traverse((o) => (o.userData.noSnow = true));
+  g.traverse((o) => { o.castShadow = o !== lantern.children[2]; o.receiveShadow = true; });
   g.position.set(cx, 0, cz);
   return {
     group: g,
     setNight(n: number, t: number) {
       glow.emissiveIntensity = 0.2 + n * 3.4 * (1 + Math.sin(t * 9) * 0.03);
-      gold.emissiveIntensity = 0.45 + n * 1.1;
-      boardMat.emissiveIntensity = 0.25 + n * 0.6;
     },
     animate(t: number, wind: number) {
-      banners.forEach((b, i) => { b.rotation.x = Math.sin(t * (1.5 + wind * 3) + i) * (0.05 + wind * 0.22) - wind * 0.12; });
-      sign.rotation.z = Math.sin(t * (1.1 + wind * 2)) * (0.006 + wind * 0.03);
+      lantern.rotation.z = Math.sin(t * (1.3 + wind * 2.5)) * (0.04 + wind * 0.18);
+      lantern.rotation.x = Math.cos(t * (1.1 + wind * 2)) * (0.02 + wind * 0.1);
     },
   };
+}
+
+function flowerAtlas(): THREE.CanvasTexture {
+  const S = 128;
+  const { canvas, ctx } = makeCanvas(S * 4, S);
+  const sets = [['#f6a2b6', '#ef7f88', '#f7d63c'], ['#fff4dc', '#f6c890', '#f0a028'], ['#c9a6ee', '#9a6ad0', '#fff0a0'], ['#ffe066', '#f2b820', '#c86a10']];
+  sets.forEach(([petal, edge, heart], i) => {
+    const cx = i * S + S / 2, cy = S / 2;
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2 - Math.PI / 2;
+      ctx.save();
+      ctx.translate(cx + Math.cos(a) * S * 0.2, cy + Math.sin(a) * S * 0.2);
+      ctx.rotate(a + Math.PI / 2);
+      const grad = ctx.createLinearGradient(0, -S * 0.24, 0, S * 0.24);
+      grad.addColorStop(0, petal);
+      grad.addColorStop(1, edge);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, S * 0.15, S * 0.24, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = heart;
+    ctx.beginPath();
+    ctx.arc(cx, cy, S * 0.11, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  return canvasTexture(canvas);
+}
+
+export interface SignArm {
+  section: SectionId;
+  title: string;
+  icon: string;
+  place: string;
+  base: THREE.Vector3;
+  tip: THREE.Vector3;
+}
+
+export function createSignpost(physics: Physics): { group: THREE.Group; arms: SignArm[] } {
+  const g = new THREE.Group();
+  const wood = standard({ color: '#7a5232', flatShading: false, roughness: 0.8 });
+  const plank = standard({ color: '#c89a62', flatShading: false, roughness: 0.7 });
+  const iron = new THREE.MeshStandardMaterial({ color: '#2e2a30', metalness: 0.5, roughness: 0.45 });
+  const stone = standard({ color: '#b5ad9c' });
+  const HEIGHT = 2.55;
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, HEIGHT, 8), wood);
+  post.position.y = HEIGHT / 2;
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.18, 8), iron);
+  cap.position.y = HEIGHT + 0.09;
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.2, 8), stone);
+  base.position.y = 0.1;
+  g.add(post, cap, base);
+
+  const L = 1.25, H = 0.32, TIP = 0.22;
+  const arrow = new THREE.Shape();
+  arrow.moveTo(0.06, -H / 2);
+  arrow.lineTo(L - TIP, -H / 2);
+  arrow.lineTo(L, 0);
+  arrow.lineTo(L - TIP, H / 2);
+  arrow.lineTo(0.06, H / 2);
+  arrow.closePath();
+  const boardGeo = new THREE.ExtrudeGeometry(arrow, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2 });
+  boardGeo.translate(0, 0, -0.025);
+
+  const targets = BUILDINGS.map((b) => ({ b, x: b.x0 + b.w / 2, z: b.z0 + b.d / 2 }))
+    .sort((a, b) => Math.atan2(a.z - SIGNPOST.z, a.x - SIGNPOST.x) - Math.atan2(b.z - SIGNPOST.z, b.x - SIGNPOST.x));
+  const arms: SignArm[] = [];
+  targets.forEach((t, i) => {
+    const arm = new THREE.Group();
+    arm.position.y = HEIGHT - 0.24 - i * 0.36;
+    const yaw = Math.atan2(-(t.z - SIGNPOST.z), t.x - SIGNPOST.x);
+    arm.rotation.y = yaw;
+    arm.add(new THREE.Mesh(boardGeo, plank));
+    const label = signLabel(HOUSE_TITLES[t.b.section] ?? t.b.section, HOUSE_ICONS[t.b.section] ?? '');
+    const textMat = new THREE.MeshBasicMaterial({ map: label, transparent: true, alphaTest: 0.05, toneMapped: false });
+    for (const side of [1, -1]) {
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(L - TIP - 0.1, H * 0.86), textMat);
+      face.position.set(0.06 + (L - TIP - 0.06) / 2 + (side < 0 ? 0.04 : 0), 0, side * 0.04);
+      if (side < 0) face.rotation.y = Math.PI;
+      face.userData.noSnow = true;
+      arm.add(face);
+    }
+    const nail = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.1, 6), iron);
+    nail.rotation.x = Math.PI / 2;
+    nail.position.set(0.12, 0, 0);
+    arm.add(nail);
+    g.add(arm);
+    const base = new THREE.Vector3(SIGNPOST.x, arm.position.y, SIGNPOST.z);
+    const dir = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    arms.push({
+      section: t.b.section,
+      title: HOUSE_TITLES[t.b.section] ?? t.b.section,
+      icon: HOUSE_ICONS[t.b.section] ?? '',
+      place: t.b.label.split(' · ')[0],
+      base,
+      tip: base.clone().addScaledVector(dir, L * 0.9),
+    });
+  });
+
+  g.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && !(m.material instanceof THREE.MeshBasicMaterial)) { m.castShadow = true; m.receiveShadow = true; } });
+  g.position.set(SIGNPOST.x, 0, SIGNPOST.z);
+  physics.cylinder(SIGNPOST.x, SIGNPOST.z, 0.25, 1.5);
+  return { group: g, arms };
+}
+
+function signLabel(text: string, icon: string): THREE.CanvasTexture {
+  const { canvas, ctx } = makeCanvas(512, 110);
+  ctx.font = '800 66px Cinzel, Georgia, serif';
+  ctx.textBaseline = 'middle';
+  const label = icon ? `${icon} ${text}` : text;
+  const w = ctx.measureText(label).width;
+  const scale = Math.min(1, 480 / w);
+  ctx.translate(256, 58);
+  ctx.scale(scale, scale);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255, 236, 200, 0.35)';
+  ctx.fillText(label, 0, 2);
+  ctx.fillStyle = '#3a2208';
+  ctx.fillText(label, 0, 0);
+  return canvasTexture(canvas);
 }
 
 export function createSign(x: number, z: number): THREE.Group {

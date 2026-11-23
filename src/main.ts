@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { BUILDINGS, Interactable, Tile, WorldMap } from './world/map';
+import { BUILDINGS, Interactable, SIGNPOST, Tile, WorldMap } from './world/map';
 import { createRenderer } from './render/setup';
 import { createTerrain } from './world/terrain';
 import { createWater } from './world/water';
@@ -10,7 +10,7 @@ import { createTrees } from './world/trees';
 import { createNature, cutBushes, regrowBushes, treesNear } from './world/nature';
 import { createGroundDetails } from './world/decals';
 import { animateFlags, createBuilding } from './world/buildings';
-import { Chest, createBridges, createFountain, createGate, createHouseSigns, createLanterns, createPushables, createSign } from './world/props';
+import { Chest, createBridges, createFountain, createGate, createHouseSigns, createLanterns, createPushables, createSign, createSignpost } from './world/props';
 import { School, SPECIES } from './world/fish';
 import { Fishing } from './fishing';
 import { Enemies } from './combat/enemies';
@@ -29,10 +29,12 @@ import { loadMonsterAssets } from './combat/monster-assets';
 import { ATTACK_KEYS, Input, INTERACT_KEYS, USE_KEYS } from './core/input';
 import { setupTouch } from './ui/touch';
 import { UI } from './ui/ui';
+import { Loader } from './ui/loader';
 import { content } from './content';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const startText = document.querySelector('.title-start') as HTMLElement;
+const loader = new Loader();
 
 async function init() {
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -40,6 +42,7 @@ async function init() {
     Promise.all(['800 64px Cinzel', '700 32px Nunito'].map((f) => document.fonts.load(f))),
     new Promise((r) => setTimeout(r, 2500)),
   ]).catch(() => undefined);
+  loader.bump(0.08);
 
   const { renderer, scene, camera, composer, sun, hemi, bloom, sunOffset, followSun, lowEnd } = createRenderer(canvas);
   const map = new WorldMap();
@@ -47,15 +50,17 @@ async function init() {
 
   scene.add(createTerrain(map));
   scene.add(createWater(map));
-  createGrass(map, lowEnd).then((g) => scene.add(g)).catch((err) => console.warn('grass failed', err));
-  createFlowers(map).then((g) => scene.add(g)).catch((err) => console.warn('flowers failed', err));
+  const extras: Promise<unknown>[] = [
+    createGrass(map, lowEnd).then((g) => scene.add(g)).catch((err) => console.warn('grass failed', err)),
+    createFlowers(map).then((g) => scene.add(g)).catch((err) => console.warn('flowers failed', err)),
+  ];
   const nature = createNature(map, lowEnd);
   scene.add(nature);
   if (!lowEnd)
-    createTrees(map).then((g) => {
+    extras.push(createTrees(map).then((g) => {
       nature.traverse((o) => { if (o.userData.insideTree) o.visible = false; });
       scene.add(g);
-    }).catch((err) => console.warn('trees failed', err));
+    }).catch((err) => console.warn('trees failed', err)));
   scene.add(createGroundDetails(map));
   scene.add(createFallingLeaves(map, lowEnd ? 120 : 240));
   scene.add(createBridges(map));
@@ -71,8 +76,10 @@ async function init() {
   const houseSigns = createHouseSigns(physics);
   scene.add(houseSigns.group);
   scene.add(createPushables(map, physics));
-  const gate = createGate(content.profile.name, physics);
+  const gate = createGate(physics);
   scene.add(gate.group);
+  const signpost = createSignpost(physics);
+  scene.add(signpost.group);
 
   let guide: Npc | null = null;
   const chests = new Map<string, Chest>();
@@ -196,11 +203,15 @@ async function init() {
   const chestMarkers = map.interactables.filter((it) => it.kind === 'chest').map((it) => ({ x: it.x, z: it.z, id: it.id }));
   const labelled = [...map.interactables, riverPrompt];
   ui.setLabels(labelled);
+  ui.setArmLabels(signpost.arms);
   ui.onPanelClose = () => { state = 'play'; input.allowDefaults = false; };
   setupTouch(input, canvas);
   canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 0) input.press('Attack'); });
 
+  await Promise.allSettled(extras);
+  await renderer.compileAsync(scene, camera).catch(() => undefined);
   startText.textContent = matchMedia('(pointer: coarse)').matches ? 'Tap to begin' : 'Press any key to begin';
+  loader.finish();
   let introT = 0;
   ui.waitForStart().then(() => {
     input.drain();
@@ -234,6 +245,10 @@ async function init() {
       state = 'panel';
       input.allowDefaults = true;
       ui.openPanel(it.section);
+    } else if (it.kind === 'signpost') {
+      state = 'panel';
+      input.allowDefaults = true;
+      ui.openDirections(signpost.arms);
     } else if (it.kind === 'sign') {
       state = 'dialog';
       ui.dialog('Warning', content.warning, () => (state = 'play'));
@@ -425,6 +440,7 @@ async function init() {
     }
 
     ui.updateLabels(labelled, camera, near?.id ?? null, state !== 'play');
+    ui.updateArmLabels(signpost.arms, camera, state === 'play' && Math.hypot(hero.x - SIGNPOST.x, hero.z - SIGNPOST.z) < 4.5);
     ui.fishHint(state === 'fishing' && fishing.hint ? (fishing.meter ? fishing.hint : `${fishing.hint}  ·  Esc to stop`) : null);
     ui.fishAlert(state === 'fishing' ? fishing.alertAt : null, camera);
     ui.fishMeter(state === 'fishing' ? fishing.meter : null);
@@ -437,4 +453,5 @@ async function init() {
 init().catch((err) => {
   console.error(err);
   startText.textContent = 'Something went wrong loading the world.';
+  loader.fail('Something went wrong loading the world.');
 });

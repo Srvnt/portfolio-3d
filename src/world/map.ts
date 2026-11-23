@@ -17,7 +17,7 @@ export interface Building {
 
 export interface Interactable {
   id: string;
-  kind: 'door' | 'sign' | 'chest' | 'fish' | 'npc';
+  kind: 'door' | 'sign' | 'chest' | 'fish' | 'npc' | 'signpost';
   x: number; z: number;
   range: number;
   label: string;
@@ -52,7 +52,8 @@ export const BUILDINGS: Building[] = [
 const CHESTS: [number, number][] = [[3, 3], [40, 33], [14, 33], [65, 6], [6, 53]];
 export const SIGN: [number, number] = [19, 15];
 export const FOUNTAIN = { x: 22, z: 17.5 };
-export const GATE = { x: 22, z: 22.4, span: 5.0 };
+export const GATE = { x: 22, z: 22.4, span: 3.4 };
+export const SIGNPOST = { x: 18.7, z: 23.9 };
 
 export class WorldMap {
   readonly W = 72;
@@ -187,6 +188,11 @@ export class WorldMap {
     this.rect(21, 16, 22, 18, (_x, _z, i) => (this.occ[i] = Occ.Fixture));
     for (const side of [-1, 1]) this.occ[this.i(Math.floor(GATE.x + side * GATE.span / 2), Math.floor(GATE.z))] = Occ.Fixture;
     this.occ[this.i(SIGN[0], SIGN[1])] = Occ.Fixture;
+    this.interactables.push({
+      id: 'signpost', kind: 'signpost', label: 'Directions',
+      x: SIGNPOST.x, z: SIGNPOST.z, range: 1.5,
+      labelPos: [SIGNPOST.x, 3.2, SIGNPOST.z],
+    });
     this.interactables.push({
       id: 'guide', kind: 'npc', label: 'Elder Oswin',
       x: SIGN[0] + 0.5, z: SIGN[1] + 0.5, range: 1.5,

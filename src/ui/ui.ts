@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Interactable, SectionId } from '../world/map';
+import type { SignArm } from '../world/props';
 import type { Content, SkillNode } from '../content';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -59,6 +60,8 @@ export function renderSection(id: SectionId, c: Content): string {
   }
 }
 
+const ORDER: SectionId[] = ['about', 'projects', 'skills', 'experience', 'contact'];
+
 export class UI {
   private dialogEl = $('#dialog');
   private dialogName = this.dialogEl.querySelector('.name') as HTMLElement;
@@ -67,6 +70,7 @@ export class UI {
   private panelWrap = $('#panel-wrap');
   private panelContent = $('#panel .content');
   private labels = new Map<string, HTMLElement>();
+  private armLabels: { el: HTMLElement; arrow: HTMLElement }[] = [];
   private lines: string[] = [];
   private line = 0;
   private shown = 0;
@@ -81,6 +85,59 @@ export class UI {
     document.title = `${content.profile.name} — ${content.profile.role.split('|')[0].trim()}`;
     $('#panel .close').addEventListener('click', () => this.closePanel());
     this.panelWrap.addEventListener('click', (e) => { if (e.target === this.panelWrap) this.closePanel(); });
+    this.panelContent.addEventListener('click', (e) => {
+      const pick = (e.target as HTMLElement).closest<HTMLElement>('[data-go]');
+      if (pick) this.openPanel(pick.dataset.go as SectionId);
+    });
+  }
+
+  openDirections(arms: SignArm[]) {
+    this.lastFocus = document.activeElement;
+    this.panelContent.innerHTML = `<h2 id="panel-title">Where to?</h2>
+      <p class="meta">Pick a place to read it now, or follow the signpost and walk there.</p>
+      <div class="directions">${[...arms]
+        .sort((x, y) => ORDER.indexOf(x.section) - ORDER.indexOf(y.section))
+        .map((a) => `<button type="button" class="dir" data-go="${esc(a.section)}">
+          <span class="dir-icon" aria-hidden="true">${esc(a.icon)}</span>
+          <span class="dir-text"><b>${esc(a.title)}</b><small>${esc(a.place)}</small></span>
+          <span class="dir-arrow" aria-hidden="true">➜</span>
+        </button>`)
+        .join('')}</div>`;
+    this.panelWrap.hidden = false;
+    document.body.classList.add('panel-open');
+    ($('#panel') as HTMLElement).scrollTop = 0;
+    this.panelContent.querySelector<HTMLButtonElement>('.dir')?.focus();
+  }
+
+  setArmLabels(arms: SignArm[]) {
+    const root = $('#labels');
+    this.armLabels = arms.map((a) => {
+      const el = document.createElement('div');
+      el.className = 'label arm-label';
+      el.innerHTML = `<span class="t">${esc(a.title)}</span><span class="arr">➜</span>`;
+      root.appendChild(el);
+      return { el, arrow: el.querySelector('.arr') as HTMLElement };
+    });
+  }
+
+  updateArmLabels(arms: SignArm[], camera: THREE.Camera, visible: boolean) {
+    const w = window.innerWidth, h = window.innerHeight;
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    arms.forEach((arm, i) => {
+      const lbl = this.armLabels[i];
+      if (!lbl) return;
+      lbl.el.classList.toggle('show', visible);
+      if (!visible) return;
+      a.copy(arm.base).project(camera);
+      b.copy(arm.tip).project(camera);
+      const ax = ((a.x + 1) / 2) * w, ay = ((1 - a.y) / 2) * h;
+      const bx = ((b.x + 1) / 2) * w, by = ((1 - b.y) / 2) * h;
+      const dx = bx - ax, dy = by - ay;
+      const len = Math.hypot(dx, dy) || 1;
+      const sx = bx + (dx / len) * 14, sy = by + (dy / len) * 10;
+      lbl.arrow.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+      lbl.el.style.transform = `translate(${Math.round(sx)}px, ${Math.round(sy)}px) translate(${dx < 0 ? '-100%' : '0'}, -50%)`;
+    });
   }
 
   waitForStart(): Promise<void> {

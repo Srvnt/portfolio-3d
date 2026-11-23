@@ -75,6 +75,22 @@ html, body {
 }
 .label.near { background: #1c2a66; color: var(--ink); }
 .label.near .key { display: inline-block; animation: pulse 1s ease-in-out infinite; }
+.arm-label { display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 13px; background: rgba(255, 246, 228, 0.9); }
+.arm-label::after { display: none; }
+.arm-label .arr { display: inline-block; color: #b07a2a; font-size: 12px; }
+.directions { display: grid; gap: 10px; margin-top: 18px; }
+.dir {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 16px;
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+  background: rgba(255, 255, 255, 0.06); border: 1.5px solid var(--gold-soft); border-radius: 14px;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+}
+.dir:hover, .dir:focus-visible { transform: translateX(4px); background: rgba(242, 198, 107, 0.14); border-color: var(--gold); outline: none; }
+.dir-icon { font-size: 24px; line-height: 1; }
+.dir-text { display: flex; flex-direction: column; flex: 1; }
+.dir-text b { font-family: var(--font-title); font-size: 19px; color: var(--gold); }
+.dir-text small { font-size: 14px; color: var(--ink-dim); font-weight: 600; }
+.dir-arrow { color: var(--gold); font-size: 18px; }
 
 .hint {
   position: fixed;
