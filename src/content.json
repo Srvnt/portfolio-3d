@@ -37,44 +37,72 @@
       ]
     },
     {
-      "title": "Three.js Portfolio",
+      "title": "SettleUp",
       "year": "2026",
-      "role": "Lead developer & Product owner",
-      "summary": "Had an idea for portfolio site and really needed to refresh my old one",
+      "role": "Solo — design & development",
+      "summary": "Settles shared trip or flat expenses with the provably fewest bank transfers, using an exact bitmask dynamic-programming solver. Comes as a zero-dependency Python CLI, a browser version that updates as you type, and a Spring Boot REST API with PostgreSQL and JWT login for saving trips.",
       "tags": [
-        "TypeScript",
-        "Three.js"
+        "Python",
+        "JavaScript",
+        "Java",
+        "Spring Boot",
+        "Algorithms"
       ],
       "links": [
         {
           "label": "Live",
-          "url": "https://example.com"
+          "url": "https://srvnt.github.io/settleup/"
+        },
+        {
+          "label": "Code",
+          "url": "https://github.com/Srvnt/settleup"
         }
       ]
     },
     {
-      "title": "Claude skills and plugins for development workflow",
-      "year": "2025",
-      "role": "Designer & developer",
-      "summary": "Personal need for simplified CI/CD pipelines and AI-enhanced coding exprience",
+      "title": "3D Portfolio Village",
+      "year": "2026",
+      "role": "Solo — design & development",
+      "summary": "This site. A walkable low-poly village where every building opens a part of my CV. Built from scratch with Three.js and cannon-es physics: instanced grass and trees that sway in the wind, day and night cycle, butterflies and a sword-swinging hero.",
       "tags": [
-        "React",
-        "Node"
+        "TypeScript",
+        "Three.js",
+        "cannon-es",
+        "Vite"
       ],
       "links": [
         {
-          "label": "Case study",
-          "url": "https://example.com"
+          "label": "Live",
+          "url": "https://srvnt.github.io/portfolio-3d/"
+        },
+        {
+          "label": "Code",
+          "url": "https://github.com/Srvnt/portfolio-3d"
         }
       ]
     },
     {
-      "title": "Github Actions",
+      "title": "Claude Code skills & plugins",
+      "year": "2025",
+      "role": "Designer & developer",
+      "summary": "Custom skills, hooks and plugins that make Claude Code part of my daily workflow: repeatable review and release steps, simpler CI/CD and less manual busywork between writing code and shipping it.",
+      "tags": [
+        "Claude Code",
+        "AI tooling",
+        "Node",
+        "Automation"
+      ],
+      "links": []
+    },
+    {
+      "title": "GitHub Actions pipelines",
       "year": "2024",
       "role": "Solo",
-      "summary": "Further enhance my development exprience and automate most of the mandatory detailed work",
+      "summary": "CI/CD workflows that test, build and deploy my projects on every push, so the routine checks run themselves and a merge to main goes live without manual steps.",
       "tags": [
-        "WebGL"
+        "GitHub Actions",
+        "CI/CD",
+        "YAML"
       ],
       "links": []
     }
