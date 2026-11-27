@@ -15,6 +15,28 @@
   },
   "projects": [
     {
+      "title": "JobFit",
+      "year": "2026",
+      "role": "Solo — design & development",
+      "summary": "Matches a CV to a job ad by meaning, not keywords, and shows the evidence and gaps for every requirement. A small embedded AI model (multilingual MiniLM, English and Finnish) runs right in the browser, so there is no API key and the CV never leaves the device.",
+      "tags": [
+        "TypeScript",
+        "Transformers.js",
+        "Embedded AI",
+        "Web Workers"
+      ],
+      "links": [
+        {
+          "label": "Live",
+          "url": "https://jobfit-cloud.vercel.app/"
+        },
+        {
+          "label": "Code",
+          "url": "https://github.com/Srvnt/jobfit"
+        }
+      ]
+    },
+    {
       "title": "Three.js Portfolio",
       "year": "2026",
       "role": "Lead developer & Product owner",
